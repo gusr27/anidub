@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/anilist", "destination": "/api/anilist" },
+    { "source": "/api/animeschedule", "destination": "/api/animeschedule" }
+  ]
+}

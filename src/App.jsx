@@ -360,7 +360,7 @@ async function fetchDubTimetable() {
 
   let res;
   try {
-    res = await fetch("/api/animeschedule/timetables/dub", {
+    res = await fetch("/api/animeschedule", {
       headers: { "Authorization": `Bearer ${SCHEDULE_KEY}` },
     });
   } catch (e) {

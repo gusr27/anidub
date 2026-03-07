@@ -8,7 +8,7 @@ export default defineConfig({
       '/api/animeschedule': {
         target: 'https://animeschedule.net',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/animeschedule/, '/api/v3'),
+        rewrite: (path) => path.replace(/^\/api\/animeschedule/, '/api/v3/timetables/dub'),
       },
       '/api/anilist': {
         target: 'https://graphql.anilist.co',
