@@ -1508,6 +1508,53 @@ function MobileNav({ page, setPage }) {
 const DUB_OPTIONS = ["dubbed","likely_dubbed","sub_only","unknown"];
 const DUB_OPTION_LABELS = { dubbed:"Dubbed", likely_dubbed:"Likely Dub", sub_only:"Sub Only", unknown:"Unknown" };
 
+function AdminSetPassword({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
+
+  const doSet = async () => {
+    if (!password || password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setLoading(true); setError(null);
+    const { data, error: err } = await supabase.auth.updateUser({ password });
+    if (err) { setError(err.message); setLoading(false); return; }
+    onDone(data.session);
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Nunito',sans-serif", padding:"24px" }}>
+      <div style={{ width:"100%", maxWidth:"380px" }}>
+        <div style={{ textAlign:"center", marginBottom:"36px" }}>
+          <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:"32px", fontWeight:700, color:"#fff", letterSpacing:"0.12em", marginBottom:"6px" }}>ANIME<span style={{color:"#dc2626"}}>DUB</span></div>
+          <div style={{ fontSize:"13px", color:"#444", letterSpacing:"0.08em", textTransform:"uppercase", fontWeight:600 }}>Set Your Password</div>
+        </div>
+        <div style={{ background:"#0f0f0f", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"12px", padding:"28px" }}>
+          <p style={{ fontSize:"13px", color:"#555", marginBottom:"20px", lineHeight:1.6 }}>
+            Welcome! Choose a password to activate your admin account.
+          </p>
+          {[["New Password", password, setPassword], ["Confirm Password", confirm, setConfirm]].map(([label, val, setter]) => (
+            <div key={label} style={{ marginBottom:"16px" }}>
+              <label style={{ display:"block", fontSize:"11px", color:"#555", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"6px" }}>{label}</label>
+              <input value={val} onChange={e=>setter(e.target.value)} type="password" placeholder="••••••••"
+                onKeyDown={e=>e.key==="Enter"&&doSet()}
+                style={{ width:"100%", background:"#080808", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"7px", padding:"11px 14px", color:"#fff", fontSize:"14px", outline:"none", fontFamily:"inherit" }}
+                onFocus={e=>e.target.style.borderColor="rgba(220,38,38,0.6)"}
+                onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.1)"}
+              />
+            </div>
+          ))}
+          {error && <div style={{ background:"rgba(220,38,38,0.1)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"6px", padding:"10px 12px", fontSize:"12px", color:"#f87171", marginBottom:"16px" }}>{error}</div>}
+          <button onClick={doSet} disabled={loading} style={{ width:"100%", background:"#dc2626", border:"none", borderRadius:"7px", padding:"12px", color:"#fff", fontSize:"14px", fontWeight:700, cursor:loading?"not-allowed":"pointer", fontFamily:"inherit", letterSpacing:"0.04em", opacity:loading?0.7:1, transition:"opacity 0.15s" }}>
+            {loading ? "Setting password…" : "Set Password & Sign In"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminLogin({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1808,15 +1855,36 @@ export default function App() {
   // ── Admin auth ──────────────────────────────────────────────────────────────
   const [authSession, setAuthSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(isAdminRoute);
+  const [needsPasswordSet, setNeedsPasswordSet] = useState(false);
 
   useEffect(() => {
     if (!isAdminRoute) return;
+
+    // Supabase puts #access_token=...&type=invite (or recovery) in the hash
+    // We need to exchange it for a session before anything else
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.replace("#", ""));
+    const type = params.get("type");
+
+    if (type === "invite" || type === "recovery") {
+      // Let Supabase SDK exchange the token automatically via onAuthStateChange
+      setNeedsPasswordSet(true);
+      setAuthLoading(false);
+      // Clear the hash so it doesn't linger
+      window.history.replaceState(null, "", "/admin");
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthSession(session);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setAuthSession(session);
+      if (event === "PASSWORD_RECOVERY" || event === "USER_UPDATED") {
+        setNeedsPasswordSet(false);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -1828,6 +1896,7 @@ export default function App() {
         <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:"24px", color:"#dc2626", letterSpacing:"0.1em" }}>Loading…</div>
       </div>
     );
+    if (needsPasswordSet) return <AdminSetPassword onDone={(session) => { setAuthSession(session); setNeedsPasswordSet(false); }} />;
     if (!authSession) return <AdminLogin onLogin={async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setAuthSession(session);
