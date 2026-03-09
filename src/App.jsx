@@ -700,58 +700,42 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
   const genres = dbData?.genres || [];
 
   // episodeDate from AnimeSchedule = the air date of this week's dub episode.
-  // If it's in the past → already aired this week.
-  // If it's in the future → still upcoming this week.
   const schedDate = show.episodeDate ? new Date(show.episodeDate) : null;
   const schedIsPast = schedDate && schedDate.getTime() < Date.now();
 
-  // Last aired — only show if schedDate has already passed
-  const lastAiredDate = schedIsPast ? schedDate : null;
-  const isToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
-  const lastAiredLabel = lastAiredDate
-    ? isToday
-      ? "Today"
-      : lastAiredDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : null;
-
-  // ── Next dub episode logic ───────────────────────────────────────────────
-  // currentDubEp: the episode number in this week's timetable
+  // Current dub ep from AnimeSchedule timetable
   const currentDubEp = show.episodeNumber || 0;
-  // totalEps: total episodes in the season (0 = unknown)
+  // Total eps in the season from Supabase (0 = unknown)
   const totalEps = dbData?.episodes || 0;
-  // nextDubEp: the episode we're waiting for
-  const nextDubEpNum = currentDubEp + 1;
 
-  // Season complete if: total eps is known AND next dub ep would exceed it
-  const seasonComplete = totalEps > 0 && nextDubEpNum > totalEps;
-
-  // If this week's episode hasn't aired yet, that IS the next ep
-  const nextEpFromSched = !schedIsPast && schedDate
-    ? { airingAt: schedDate.getTime() / 1000, episode: currentDubEp }
+  // Last aired date — only if schedDate has passed
+  const lastAiredDate = schedIsPast ? schedDate : null;
+  const lastAiredIsToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
+  const lastAiredDateLabel = lastAiredDate
+    ? lastAiredIsToday
+      ? "Today"
+      : lastAiredDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : null;
 
-  // AniList nextAiringEpisode is for the sub — only use it if the sub ep
-  // matches what we'd expect for dub ep+1 (i.e. they're running in parallel)
-  const anilistNext = dbData?.nextAiringEpisode;
-  const anilistNextEpNum = anilistNext?.episode || 0;
-  const nextEpFromAnilist = anilistNext && anilistNextEpNum === nextDubEpNum
-    ? anilistNext
-    : null;
-
-  // Resolve: sched date (if future) > anilist match > nothing
-  const resolvedNext = nextEpFromSched || nextEpFromAnilist || null;
-
-  const nextEpLabel = seasonComplete
-    ? "Complete"
-    : resolvedNext?.airingAt
-      ? (() => {
-          const d = new Date(resolvedNext.airingAt * 1000);
-          return new Date().toDateString() === d.toDateString()
-            ? "Today"
-            : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-        })()
-      : null;
-  const nextEpDisplay = seasonComplete ? null : (resolvedNext?.episode || nextDubEpNum);
+  // ── Episodes left in season ──────────────────────────────────────────────
+  // If episode has aired (schedIsPast or today) → episodes left = totalEps - currentDubEp
+  // If episode is upcoming (future) → episodes left = totalEps - (currentDubEp - 1)
+  //   because ep currentDubEp is still to come so we include it
+  let epsLeft = null;
+  let seasonComplete = false;
+  if (totalEps > 0 && currentDubEp > 0) {
+    if (schedIsPast) {
+      // This ep has aired — count remaining after it
+      epsLeft = totalEps - currentDubEp;
+    } else {
+      // This ep hasn't aired yet — include it in the remaining count
+      epsLeft = totalEps - (currentDubEp - 1);
+    }
+    if (epsLeft <= 0) {
+      seasonComplete = true;
+      epsLeft = 0;
+    }
+  }
 
   const infoBoxStyle = {
     background: "#0d0d0d", borderRadius: "10px",
@@ -843,27 +827,37 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
             {/* Last aired */}
             <div style={infoBoxStyle}>
               <span style={infoLabelStyle}>Last Dub Ep</span>
-              <span style={{ ...infoValueStyle, color: isToday ? "#4ade80" : lastAiredLabel ? "#e0e0e0" : "#333", fontSize: lastAiredLabel && lastAiredLabel.length > 8 ? "11px" : "13px" }}>
-                {lastAiredLabel || "—"}
-              </span>
-              {lastAiredLabel && currentDubEp > 0 && <span style={{ fontSize: "9px", color: "#555" }}>Ep {currentDubEp}</span>}
-            </div>
-
-            {/* Next episode */}
-            <div style={infoBoxStyle}>
-              <span style={infoLabelStyle}>Next Dub Ep</span>
-              {seasonComplete ? (
+              {currentDubEp && schedIsPast ? (
                 <>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.2 }}>Season</span>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.2 }}>Complete</span>
-                </>
-              ) : nextEpLabel ? (
-                <>
-                  <span style={{ ...infoValueStyle, fontSize: nextEpLabel.length > 8 ? "11px" : "13px", color: nextEpLabel === "Today" ? "#4ade80" : "#e0e0e0" }}>{nextEpLabel}</span>
-                  {nextEpDisplay && <span style={{ fontSize: "9px", color: "#555" }}>Ep {nextEpDisplay}</span>}
+                  <span style={{ fontSize: "22px", fontWeight: 800, color: "#fff", lineHeight: 1, fontFamily: "'Rajdhani', sans-serif" }}>
+                    {currentDubEp}
+                  </span>
+                  <span style={{ fontSize: "10px", color: lastAiredIsToday ? "#4ade80" : "#555", fontWeight: 600 }}>
+                    {lastAiredDateLabel || "—"}
+                  </span>
                 </>
               ) : (
-                <span style={{ ...infoValueStyle, color: "#333", fontSize: "11px" }}>TBA</span>
+                <span style={{ ...infoValueStyle, color: "#333" }}>—</span>
+              )}
+            </div>
+
+            {/* Episodes left in season */}
+            <div style={infoBoxStyle}>
+              <span style={infoLabelStyle}>Eps Left</span>
+              {totalEps === 0 ? (
+                <span style={{ ...infoValueStyle, color: "#333", fontSize: "11px" }}>Unknown</span>
+              ) : seasonComplete ? (
+                <>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.3 }}>Season</span>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.3 }}>Complete</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: "22px", fontWeight: 800, color: epsLeft <= 3 ? "#f87171" : "#fff", lineHeight: 1, fontFamily: "'Rajdhani', sans-serif" }}>
+                    {epsLeft}
+                  </span>
+                  <span style={{ fontSize: "10px", color: "#555", fontWeight: 600 }}>of {totalEps}</span>
+                </>
               )}
             </div>
           </div>
