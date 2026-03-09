@@ -693,7 +693,7 @@ function SyncBanner({ syncState, onManualSync }) {
 }
 
 // ─── Show Modal (mobile) ─────────────────────────────────────────────────────
-function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClose }) {
+function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewDub, onClose }) {
   const [dbData, setDbData] = useState(null);
 
   // Lock body scroll while open
@@ -905,18 +905,26 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             backdropFilter: "blur(4px)",
           }}>×</button>
-          {isAiringNow && (
-            <div style={{
-              position: "absolute", top: "12px", left: "12px",
-              background: "rgba(220,38,38,0.9)", color: "#fff",
-              fontSize: "9px", fontWeight: 800, padding: "3px 8px",
-              borderRadius: "4px", letterSpacing: "0.07em",
-              display: "flex", alignItems: "center", gap: "4px",
-            }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-              AIRING NOW
-            </div>
-          )}
+          <div style={{ position: "absolute", top: "12px", left: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
+            {isNewDub && (
+              <div style={{
+                background: "rgba(250,204,21,0.92)", color: "#000",
+                fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+                borderRadius: "4px", letterSpacing: "0.07em", alignSelf: "flex-start",
+              }}>★ NEW DUB — EP 1</div>
+            )}
+            {isAiringNow && (
+              <div style={{
+                background: "rgba(220,38,38,0.9)", color: "#fff",
+                fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+                borderRadius: "4px", letterSpacing: "0.07em",
+                display: "flex", alignItems: "center", gap: "4px", alignSelf: "flex-start",
+              }}>
+                <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+                AIRING NOW
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Scrollable body ── */}
@@ -1059,7 +1067,7 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
 }
 
 // ─── ShowCard (calendar) ──────────────────────────────────────────────────────
-function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isMobile }) {
+function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isNewDub, isMobile }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
@@ -1075,8 +1083,8 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             borderRadius: "10px",
             overflow: "hidden",
             cursor: "pointer",
-            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.07)"}`,
-            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : "0 4px 16px rgba(0,0,0,0.5)",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : isNewDub ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.07)"}`,
+            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : isNewDub ? "0 0 14px rgba(250,204,21,0.12)" : "0 4px 16px rgba(0,0,0,0.5)",
             userSelect: "none",
             aspectRatio: "2/3",
             background: "#111",
@@ -1089,39 +1097,47 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "#333" }}>◈</div>
           )}
 
-          {/* Title gradient at top */}
+          {/* Title + ep at bottom */}
           <div style={{
-            position: "absolute", top: 0, left: 0, right: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, transparent 100%)",
-            padding: "10px 10px 20px",
+            position: "absolute", bottom: 0, left: 0, right: 0,
+            background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 55%, transparent 100%)",
+            padding: "32px 10px 10px",
           }}>
             <div style={{
-              fontSize: "12px", fontWeight: 700, color: "#fff",
+              fontSize: "13px", fontWeight: 700, color: "#fff",
               fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.03em", lineHeight: 1.25,
               display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
             }}>{title}</div>
-            {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>}
+            {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "3px" }}>Ep {epNum}</div>}
           </div>
 
-          {/* LIVE badge */}
-          {isAiringNow && (
-            <div style={{
-              position: "absolute", top: 8, right: 8,
-              background: "rgba(220,38,38,0.9)", color: "#fff",
-              fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-              borderRadius: "3px", letterSpacing: "0.07em",
-              display: "flex", alignItems: "center", gap: "4px",
-            }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-              LIVE
-            </div>
-          )}
+          {/* Badges — top left */}
+          <div style={{ position: "absolute", top: 8, left: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+            {isNewDub && (
+              <div style={{
+                background: "rgba(250,204,21,0.92)", color: "#000",
+                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
+                borderRadius: "3px", letterSpacing: "0.07em",
+              }}>★ NEW DUB</div>
+            )}
+            {isAiringNow && (
+              <div style={{
+                background: "rgba(220,38,38,0.9)", color: "#fff",
+                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
+                borderRadius: "3px", letterSpacing: "0.07em",
+                display: "flex", alignItems: "center", gap: "4px",
+              }}>
+                <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+                LIVE
+              </div>
+            )}
+          </div>
 
-          {/* Stream count badge at bottom */}
+          {/* Stream count — bottom right */}
           {streamEntries.length > 0 && (
             <div style={{
-              position: "absolute", bottom: 8, left: 8,
-              background: "rgba(0,0,0,0.7)", borderRadius: "4px",
+              position: "absolute", top: 8, right: 8,
+              background: "rgba(0,0,0,0.65)", borderRadius: "4px",
               padding: "2px 6px", fontSize: "9px", color: "#888",
               fontFamily: "monospace", backdropFilter: "blur(4px)",
             }}>▶ {streamEntries.length}</div>
@@ -1136,6 +1152,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             img={img}
             streamEntries={streamEntries}
             isAiringNow={isAiringNow}
+            isNewDub={isNewDub}
             onClose={() => setModalOpen(false)}
           />
         )}
@@ -1153,7 +1170,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
       onMouseLeave={() => setHovered(false)}
       style={{
         background: hovered ? hoverBg : "#0f0f0f",
-        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.06)"}`,
+        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : "rgba(255,255,255,0.06)"}`,
         borderRadius: "9px", overflow: "hidden",
         display: "flex", alignItems: "stretch",
         cursor: primaryUrl ? "pointer" : "default",
@@ -1184,6 +1201,14 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             <span style={{ flexShrink: 0, fontSize: "11px", color: hovered && accentColor ? accentColor : "#444", fontFamily: "monospace", fontWeight: 600, transition: "color 0.15s" }}>
               Ep {epNum}
             </span>
+          )}
+          {isNewDub && (
+            <span style={{
+              flexShrink: 0, fontSize: "9px", fontWeight: 800,
+              background: "rgba(250,204,21,0.15)", color: "#facc15",
+              border: "1px solid rgba(250,204,21,0.35)",
+              borderRadius: "4px", padding: "1px 6px", letterSpacing: "0.06em",
+            }}>★ NEW DUB</span>
           )}
         </div>
 
@@ -1542,9 +1567,9 @@ function AiringPage({ isMobile = false }) {
                       {/* Show cards for this time slot */}
                       <div style={{
                         display: isMobile ? "grid" : "flex",
-                        gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(110px, 1fr))" : undefined,
+                        gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(270px, 1fr))" : undefined,
                         flexDirection: isMobile ? undefined : "column",
-                        gap: isMobile ? "10px" : "6px",
+                        gap: isMobile ? "12px" : "6px",
                       }}>
                         {shows.map((show, i) => {
                           const title = show.english || show.romaji || show.title || "Unknown";
@@ -1559,6 +1584,7 @@ function AiringPage({ isMobile = false }) {
                           const primaryUrl = streamEntries[0]?.[1] || null;
                           const primaryColor = getStreamColor(primarySite);
 
+                          const isNewDub = epNum === 1;
                           return (
                             <ShowCard
                               key={i}
@@ -1570,6 +1596,7 @@ function AiringPage({ isMobile = false }) {
                               primaryUrl={primaryUrl}
                               primaryColor={primaryColor}
                               isAiringNow={isAiringNow}
+                              isNewDub={isNewDub}
                               isMobile={isMobile}
                             />
                           );
