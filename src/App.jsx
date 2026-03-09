@@ -699,13 +699,13 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
     : null;
   const genres = dbData?.genres || [];
 
-  // episodeDate from AnimeSchedule = the air date of this week's episode.
-  // If it's in the past → it's the last aired episode.
-  // If it's in the future → it's the upcoming episode (use nextAiringEpisode from DB instead for "Next Ep").
+  // episodeDate from AnimeSchedule = the air date of this week's dub episode.
+  // If it's in the past → already aired this week.
+  // If it's in the future → still upcoming this week.
   const schedDate = show.episodeDate ? new Date(show.episodeDate) : null;
   const schedIsPast = schedDate && schedDate.getTime() < Date.now();
 
-  // Last aired — only use schedDate if it has already passed
+  // Last aired — only show if schedDate has already passed
   const lastAiredDate = schedIsPast ? schedDate : null;
   const isToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
   const lastAiredLabel = lastAiredDate
@@ -714,18 +714,44 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
       : lastAiredDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
 
-  // Next episode — prefer DB nextAiringEpisode, but if schedDate is in the future use that
-  const nextEp = dbData?.nextAiringEpisode;
-  const nextEpFromSched = !schedIsPast && schedDate ? { airingAt: schedDate.getTime() / 1000, episode: show.episodeNumber } : null;
-  const resolvedNextEp = nextEp || nextEpFromSched;
-  const nextEpLabel = resolvedNextEp?.airingAt
-    ? (() => {
-        const d = new Date(resolvedNextEp.airingAt * 1000);
-        const isNextToday = new Date().toDateString() === d.toDateString();
-        return isNextToday ? "Today" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      })()
+  // ── Next dub episode logic ───────────────────────────────────────────────
+  // currentDubEp: the episode number in this week's timetable
+  const currentDubEp = show.episodeNumber || 0;
+  // totalEps: total episodes in the season (0 = unknown)
+  const totalEps = dbData?.episodes || 0;
+  // nextDubEp: the episode we're waiting for
+  const nextDubEpNum = currentDubEp + 1;
+
+  // Season complete if: total eps is known AND next dub ep would exceed it
+  const seasonComplete = totalEps > 0 && nextDubEpNum > totalEps;
+
+  // If this week's episode hasn't aired yet, that IS the next ep
+  const nextEpFromSched = !schedIsPast && schedDate
+    ? { airingAt: schedDate.getTime() / 1000, episode: currentDubEp }
     : null;
-  const nextEpNum = resolvedNextEp?.episode || null;
+
+  // AniList nextAiringEpisode is for the sub — only use it if the sub ep
+  // matches what we'd expect for dub ep+1 (i.e. they're running in parallel)
+  const anilistNext = dbData?.nextAiringEpisode;
+  const anilistNextEpNum = anilistNext?.episode || 0;
+  const nextEpFromAnilist = anilistNext && anilistNextEpNum === nextDubEpNum
+    ? anilistNext
+    : null;
+
+  // Resolve: sched date (if future) > anilist match > nothing
+  const resolvedNext = nextEpFromSched || nextEpFromAnilist || null;
+
+  const nextEpLabel = seasonComplete
+    ? "Complete"
+    : resolvedNext?.airingAt
+      ? (() => {
+          const d = new Date(resolvedNext.airingAt * 1000);
+          return new Date().toDateString() === d.toDateString()
+            ? "Today"
+            : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        })()
+      : null;
+  const nextEpDisplay = seasonComplete ? null : (resolvedNext?.episode || nextDubEpNum);
 
   const infoBoxStyle = {
     background: "#0d0d0d", borderRadius: "10px",
@@ -816,23 +842,28 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
 
             {/* Last aired */}
             <div style={infoBoxStyle}>
-              <span style={infoLabelStyle}>Last Ep</span>
+              <span style={infoLabelStyle}>Last Dub Ep</span>
               <span style={{ ...infoValueStyle, color: isToday ? "#4ade80" : lastAiredLabel ? "#e0e0e0" : "#333", fontSize: lastAiredLabel && lastAiredLabel.length > 8 ? "11px" : "13px" }}>
                 {lastAiredLabel || "—"}
               </span>
-              {lastAiredLabel && epNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {epNum}</span>}
+              {lastAiredLabel && currentDubEp > 0 && <span style={{ fontSize: "9px", color: "#555" }}>Ep {currentDubEp}</span>}
             </div>
 
             {/* Next episode */}
             <div style={infoBoxStyle}>
-              <span style={infoLabelStyle}>Next Ep</span>
-              {nextEpLabel ? (
+              <span style={infoLabelStyle}>Next Dub Ep</span>
+              {seasonComplete ? (
+                <>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.2 }}>Season</span>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#4ade80", lineHeight: 1.2 }}>Complete</span>
+                </>
+              ) : nextEpLabel ? (
                 <>
                   <span style={{ ...infoValueStyle, fontSize: nextEpLabel.length > 8 ? "11px" : "13px", color: nextEpLabel === "Today" ? "#4ade80" : "#e0e0e0" }}>{nextEpLabel}</span>
-                  {nextEpNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {nextEpNum}</span>}
+                  {nextEpDisplay && <span style={{ fontSize: "9px", color: "#555" }}>Ep {nextEpDisplay}</span>}
                 </>
               ) : (
-                <span style={{ ...infoValueStyle, color: "#333" }}>TBA</span>
+                <span style={{ ...infoValueStyle, color: "#333", fontSize: "11px" }}>TBA</span>
               )}
             </div>
           </div>
