@@ -1111,8 +1111,8 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>}
           </div>
 
-          {/* Badges — top right stack */}
-          <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-end" }}>
+          {/* Badges — bottom left stack (above stream count) */}
+          <div style={{ position: "absolute", bottom: streamEntries.length > 0 ? 28 : 8, left: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
             {isNewDub && (
               <div style={{
                 background: "rgba(250,204,21,0.92)", color: "#000",
