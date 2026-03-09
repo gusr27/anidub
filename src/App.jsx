@@ -911,11 +911,19 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
           }}>×</button>
           <div style={{ position: "absolute", top: "12px", left: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
             {isNewDub && (
-              <div style={{
-                background: "rgba(250,204,21,0.92)", color: "#000",
-                fontSize: "9px", fontWeight: 800, padding: "3px 8px",
-                borderRadius: "4px", letterSpacing: "0.07em", alignSelf: "flex-start",
-              }}>★ NEW DUB — EP 1</div>
+              <motion.div
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{
+                  scale: 1, opacity: 1,
+                  boxShadow: ["0 0 0px rgba(250,204,21,0)","0 0 12px rgba(250,204,21,0.7)","0 0 0px rgba(250,204,21,0)"],
+                }}
+                transition={{ scale: { type: "spring", stiffness: 500, damping: 20 }, opacity: { duration: 0.2 }, boxShadow: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.5 } }}
+                style={{
+                  background: "rgba(250,204,21,0.92)", color: "#000",
+                  fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+                  borderRadius: "4px", letterSpacing: "0.07em", alignSelf: "flex-start",
+                }}
+              >★ NEW DUB — EP 1</motion.div>
             )}
             {isAiringNow && (
               <div style={{
@@ -1117,11 +1125,21 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
                 <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace", fontWeight: 600 }}>Ep {epNum}</span>
               )}
               {isNewDub && (
-                <span style={{
-                  fontSize: "8px", fontWeight: 800, padding: "1px 5px",
-                  background: "rgba(250,204,21,0.15)", color: "#facc15",
-                  border: "1px solid rgba(250,204,21,0.35)", borderRadius: "3px", letterSpacing: "0.06em",
-                }}>★ NEW DUB</span>
+                <motion.span
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{
+                    scale: 1, opacity: 1,
+                    boxShadow: ["0 0 0px rgba(250,204,21,0)","0 0 8px rgba(250,204,21,0.6)","0 0 0px rgba(250,204,21,0)"],
+                    borderColor: ["rgba(250,204,21,0.3)","rgba(250,204,21,0.8)","rgba(250,204,21,0.3)"],
+                  }}
+                  transition={{ scale: { type: "spring", stiffness: 500, damping: 20 }, opacity: { duration: 0.2 }, boxShadow: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }, borderColor: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.5 } }}
+                  style={{
+                    fontSize: "8px", fontWeight: 800, padding: "1px 5px",
+                    background: "rgba(250,204,21,0.15)", color: "#facc15",
+                    border: "1px solid rgba(250,204,21,0.35)", borderRadius: "3px", letterSpacing: "0.06em",
+                    display: "inline-block",
+                  }}
+                >★ NEW DUB</motion.span>
               )}
               {isAiringNow && (
                 <span style={{
@@ -1223,8 +1241,13 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
           )}
           {isNewDub && (
             <motion.span
-              initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.1 }}
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{
+                scale: 1, opacity: 1,
+                boxShadow: ["0 0 0px rgba(250,204,21,0)","0 0 8px rgba(250,204,21,0.6)","0 0 0px rgba(250,204,21,0)"],
+                borderColor: ["rgba(250,204,21,0.3)","rgba(250,204,21,0.8)","rgba(250,204,21,0.3)"],
+              }}
+              transition={{ scale: { type: "spring", stiffness: 500, damping: 20, delay: 0.1 }, opacity: { duration: 0.2, delay: 0.1 }, boxShadow: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.6 }, borderColor: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.6 } }}
               style={{
                 flexShrink: 0, fontSize: "9px", fontWeight: 800,
                 background: "rgba(250,204,21,0.15)", color: "#facc15",
