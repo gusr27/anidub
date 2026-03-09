@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { motion, AnimatePresence } from "motion/react";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
@@ -870,23 +871,25 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
   const infoValueStyle = { fontSize: "13px", color: "#e0e0e0", fontWeight: 700, lineHeight: 1.2 };
 
   return (
-    <div
+    <motion.div
       onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
       style={{
         position: "fixed", inset: 0, zIndex: 500,
         background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
         display: "flex", alignItems: "flex-end", justifyContent: "center",
-        animation: "fadeIn 0.2s ease",
       }}
     >
-      <div
+      <motion.div
         onClick={e => e.stopPropagation()}
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 380, damping: 38 }}
         style={{
           width: "100%", maxWidth: "480px",
           background: "#111",
           borderRadius: "20px 20px 0 0",
           overflow: "hidden",
-          animation: "slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1)",
           maxHeight: "92vh",
           display: "flex", flexDirection: "column",
         }}
@@ -1062,8 +1065,8 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
             <div style={{ fontSize: "12px", color: "#2a2a2a", textAlign: "center", padding: "4px 0" }}>No streaming links available</div>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1077,8 +1080,11 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
   if (isMobile) {
     return (
       <>
-        <div
+        <motion.div
           onClick={() => setModalOpen(true)}
+          variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
           style={{
             display: "flex", alignItems: "center", gap: "10px",
             cursor: "pointer",
@@ -1150,20 +1156,22 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
 
-        {modalOpen && (
-          <ShowModal
-            show={show}
-            title={title}
-            epNum={epNum}
-            img={img}
-            streamEntries={streamEntries}
-            isAiringNow={isAiringNow}
-            isNewDub={isNewDub}
-            onClose={() => setModalOpen(false)}
-          />
-        )}
+        <AnimatePresence>
+          {modalOpen && (
+            <ShowModal
+              show={show}
+              title={title}
+              epNum={epNum}
+              img={img}
+              streamEntries={streamEntries}
+              isAiringNow={isAiringNow}
+              isNewDub={isNewDub}
+              onClose={() => setModalOpen(false)}
+            />
+          )}
+        </AnimatePresence>
       </>
     );
   }
@@ -1173,9 +1181,12 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
   const hoverBorder = accentColor ? `${accentColor}66` : "rgba(255,255,255,0.15)";
 
   const desktopCard = (
-    <div
+    <motion.div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      whileHover={{ scale: 1.012 }}
+      transition={{ type: "spring", stiffness: 350, damping: 30 }}
       style={{
         background: hovered ? hoverBg : "#0f0f0f",
         border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : "rgba(255,255,255,0.06)"}`,
@@ -1211,12 +1222,17 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             </span>
           )}
           {isNewDub && (
-            <span style={{
-              flexShrink: 0, fontSize: "9px", fontWeight: 800,
-              background: "rgba(250,204,21,0.15)", color: "#facc15",
-              border: "1px solid rgba(250,204,21,0.35)",
-              borderRadius: "4px", padding: "1px 6px", letterSpacing: "0.06em",
-            }}>★ NEW DUB</span>
+            <motion.span
+              initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.1 }}
+              style={{
+                flexShrink: 0, fontSize: "9px", fontWeight: 800,
+                background: "rgba(250,204,21,0.15)", color: "#facc15",
+                border: "1px solid rgba(250,204,21,0.35)",
+                borderRadius: "4px", padding: "1px 6px", letterSpacing: "0.06em",
+                display: "inline-block",
+              }}
+            >★ NEW DUB</motion.span>
           )}
         </div>
 
@@ -1255,7 +1271,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
           fontSize: "16px", transition: "color 0.15s",
         }}>›</div>
       )}
-    </div>
+    </motion.div>
   );
 
   if (primaryUrl) {
@@ -1476,18 +1492,23 @@ function AiringPage({ isMobile = false }) {
           const tabDate = weekDates[i];
           const dateLabel = tabDate.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
           return (
-            <button key={day} onClick={() => setActiveDay(i)} style={{
-              flexShrink: 0,
-              background: isActive ? "#dc2626" : isToday ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.04)",
-              border: isActive ? "1px solid #dc2626" : isToday ? "1px solid rgba(220,38,38,0.35)" : "1px solid rgba(255,255,255,0.08)",
-              color: isActive ? "#fff" : isToday ? "#f87171" : "#555",
-              borderRadius: "8px",
-              padding: isMobile ? "7px 8px" : "9px 14px",
-              cursor: "pointer", fontFamily: "inherit",
-              transition: "all 0.15s",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
-              minWidth: isMobile ? "48px" : "72px",
-            }}>
+            <motion.button
+              key={day}
+              onClick={() => setActiveDay(i)}
+              whileTap={{ scale: 0.93 }}
+              style={{
+                flexShrink: 0,
+                background: isActive ? "#dc2626" : isToday ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.04)",
+                border: isActive ? "1px solid #dc2626" : isToday ? "1px solid rgba(220,38,38,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                color: isActive ? "#fff" : isToday ? "#f87171" : "#555",
+                borderRadius: "8px",
+                padding: isMobile ? "7px 8px" : "9px 14px",
+                cursor: "pointer", fontFamily: "inherit",
+                transition: "all 0.15s",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
+                minWidth: isMobile ? "48px" : "72px",
+              }}
+            >
               <span style={{ fontSize: isMobile ? "11px" : "12px", fontWeight: 700, letterSpacing: "0.04em" }}>
                 {DAY_LABELS[i]}
               </span>
@@ -1504,7 +1525,7 @@ function AiringPage({ isMobile = false }) {
               {isToday && !isActive && (
                 <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#dc2626", marginTop: "1px" }} />
               )}
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -1573,11 +1594,15 @@ function AiringPage({ isMobile = false }) {
                       </div>
 
                       {/* Show cards for this time slot */}
-                      <div style={{
-                        display: isMobile ? "flex" : "flex",
-                        flexDirection: "column",
-                        gap: isMobile ? "6px" : "6px",
-                      }}>
+                      <motion.div
+                        initial="hidden" animate="visible"
+                        variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                        style={{
+                          display: isMobile ? "flex" : "flex",
+                          flexDirection: "column",
+                          gap: isMobile ? "6px" : "6px",
+                        }}
+                      >
                         {shows.map((show, i) => {
                           const title = show.english || show.romaji || show.title || "Unknown";
                           const epNum = show.episodeNumber;
@@ -1608,7 +1633,7 @@ function AiringPage({ isMobile = false }) {
                             />
                           );
                         })}
-                      </div>
+                      </motion.div>
                     </div>
                   );
                 })}
@@ -1884,20 +1909,34 @@ function MobileNav({ page, setPage }) {
       {MOBILE_NAV.map(n => {
         const active = page === n.id;
         return (
-          <button key={n.id} onClick={() => setPage(n.id)} style={{
-            flex: 1, background: "transparent", border: "none",
-            color: active ? "#f87171" : "#444",
-            display: "flex", flexDirection: "column", alignItems: "center",
-            justifyContent: "center", gap: "3px", padding: "10px 4px",
-            cursor: "pointer", fontFamily: "inherit",
-            borderTop: active ? "2px solid #dc2626" : "2px solid transparent",
-            transition: "color 0.15s, border-color 0.15s",
-          }}>
+          <motion.button
+            key={n.id}
+            onClick={() => setPage(n.id)}
+            whileTap={{ scale: 0.9 }}
+            style={{
+              flex: 1, background: "transparent", border: "none",
+              color: active ? "#f87171" : "#444",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: "3px", padding: "10px 4px",
+              cursor: "pointer", fontFamily: "inherit", position: "relative",
+              transition: "color 0.15s",
+            }}
+          >
+            {active && (
+              <motion.div
+                layoutId="mobile-nav-indicator"
+                style={{
+                  position: "absolute", top: 0, left: "10%", right: "10%",
+                  height: "2px", background: "#dc2626", borderRadius: "0 0 2px 2px",
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 35 }}
+              />
+            )}
             <span style={{ fontSize: "16px", lineHeight: 1 }}>{n.icon}</span>
             <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
               {n.label}
             </span>
-          </button>
+          </motion.button>
         );
       })}
     </nav>
@@ -2438,17 +2477,27 @@ export default function App() {
           style={{ maxWidth: "1100px", margin: "0 auto", padding: mainPad, animation: "fadeIn 0.3s ease" }}
           key={page}
         >
-          {page === "airing"          && <AiringPage   isMobile={isMobile} />}
-          {page === "upcoming"        && <UpcomingPage gridMinCard={gridMinCard} />}
-          {page === "search"          && <SearchPage   gridMinCard={gridMinCard} isMobile={isMobile} />}
-          {page === "watch"           && <WatchPage isMobile={isMobile} />}
-          {page === "recently_dubbed" && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", gap: "12px", color: "#333" }}>
-              <span style={{ fontSize: "32px" }}>▶</span>
-              <div style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: "#444", letterSpacing: "0.05em" }}>Recently Dubbed</div>
-              <div style={{ fontSize: "12px", color: "#333" }}>Coming soon</div>
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={page}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {page === "airing"          && <AiringPage   isMobile={isMobile} />}
+              {page === "upcoming"        && <UpcomingPage gridMinCard={gridMinCard} />}
+              {page === "search"          && <SearchPage   gridMinCard={gridMinCard} isMobile={isMobile} />}
+              {page === "watch"           && <WatchPage isMobile={isMobile} />}
+              {page === "recently_dubbed" && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", gap: "12px", color: "#333" }}>
+                  <span style={{ fontSize: "32px" }}>▶</span>
+                  <div style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: "#444", letterSpacing: "0.05em" }}>Recently Dubbed</div>
+                  <div style={{ fontSize: "12px", color: "#333" }}>Coming soon</div>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         {!isMobile && (
