@@ -670,118 +670,225 @@ function SyncBanner({ syncState, onManualSync }) {
   );
 }
 
+// ─── Show Modal (mobile) ─────────────────────────────────────────────────────
+function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClose }) {
+  // Lock body scroll while open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const airTime = show.episodeDate ? new Date(show.episodeDate).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : null;
+  const airDate = show.episodeDate ? new Date(show.episodeDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 500,
+        background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+        animation: "fadeIn 0.2s ease",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: "480px",
+          background: "#111",
+          borderRadius: "20px 20px 0 0",
+          overflow: "hidden",
+          animation: "slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1)",
+          maxHeight: "90vh",
+          display: "flex", flexDirection: "column",
+        }}
+      >
+        {/* ── Poster header ── */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          {img ? (
+            <img src={img} alt={title} style={{ width: "100%", height: "220px", objectFit: "cover", objectPosition: "top", display: "block" }} />
+          ) : (
+            <div style={{ width: "100%", height: "200px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px", color: "#2a2a2a" }}>◈</div>
+          )}
+          {/* Gradient over poster */}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(17,17,17,1) 100%)" }} />
+          {/* Close pill */}
+          <button onClick={onClose} style={{
+            position: "absolute", top: "12px", right: "12px",
+            background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "20px",
+            color: "#fff", fontSize: "18px", width: "32px", height: "32px",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(4px)",
+          }}>×</button>
+          {/* LIVE badge */}
+          {isAiringNow && (
+            <div style={{
+              position: "absolute", top: "12px", left: "12px",
+              background: "rgba(220,38,38,0.9)", color: "#fff",
+              fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+              borderRadius: "4px", letterSpacing: "0.07em",
+              display: "flex", alignItems: "center", gap: "4px",
+            }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+              AIRING NOW
+            </div>
+          )}
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 12px" }}>
+          {/* Title */}
+          <div style={{ marginBottom: "16px" }}>
+            <h2 style={{
+              fontFamily: "'Rajdhani', sans-serif", fontSize: "22px", fontWeight: 700,
+              color: "#fff", letterSpacing: "0.03em", lineHeight: 1.2, marginBottom: "4px",
+            }}>{show.english || title}</h2>
+            {show.romaji && show.english && show.romaji !== show.english && (
+              <div style={{ fontSize: "12px", color: "#555" }}>{show.romaji}</div>
+            )}
+          </div>
+
+          {/* Details grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+            {[
+              epNum   ? ["Episode",  `#${epNum}`]                    : null,
+              airTime ? ["Airs at",  airTime]                        : null,
+              airDate ? ["Date",     airDate]                        : null,
+              show.airingStatus ? ["Status", show.airingStatus]      : null,
+              show.episodes     ? ["Episodes", String(show.episodes)] : null,
+              show.airType      ? ["Type", show.airType]              : null,
+            ].filter(Boolean).map(([label, value]) => (
+              <div key={label} style={{ background: "#0f0f0f", borderRadius: "8px", padding: "10px 12px" }}>
+                <div style={{ fontSize: "10px", color: "#444", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "3px" }}>{label}</div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", fontWeight: 600 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Stream footer ── */}
+        <div style={{
+          flexShrink: 0,
+          borderTop: "1px solid rgba(255,255,255,0.07)",
+          padding: "14px 20px",
+          paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
+          background: "#0d0d0d",
+        }}>
+          {streamEntries.length > 0 ? (
+            <>
+              <div style={{ fontSize: "10px", color: "#333", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: "10px" }}>Watch Now</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {streamEntries.map(([site, url]) => {
+                  const color = getStreamColor(site);
+                  return (
+                    <a key={site} href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                      <div style={{
+                        background: color + "18",
+                        border: `1px solid ${color}55`,
+                        borderRadius: "8px",
+                        padding: "8px 14px",
+                        display: "flex", alignItems: "center", gap: "7px",
+                      }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: color, letterSpacing: "0.04em" }}>{site}</span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: "12px", color: "#2a2a2a", textAlign: "center", padding: "4px 0" }}>No streaming links available</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── ShowCard (calendar) ──────────────────────────────────────────────────────
-function ShowCard({ title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isMobile }) {
-  const [touched, setTouched] = useState(false);
+function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isMobile }) {
+  const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
 
   // ── Mobile poster card ───────────────────────────────────────────────────────
   if (isMobile) {
-    const revealed = touched || hovered;
-    const mobileCard = (
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onTouchStart={() => setTouched(t => !t)}
-        style={{
-          position: "relative",
-          borderRadius: "10px",
-          overflow: "hidden",
-          cursor: primaryUrl ? "pointer" : "default",
-          border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.07)"}`,
-          boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : "0 4px 16px rgba(0,0,0,0.5)",
-          userSelect: "none",
-          aspectRatio: "2/3",
-          background: "#111",
-        }}
-      >
-        {/* Poster image — full card */}
-        {img ? (
-          <img
-            src={img} alt={title}
-            style={{
-              width: "100%", height: "100%", objectFit: "cover", display: "block",
-              transition: "transform 0.35s ease",
-              transform: revealed ? "scale(1.06)" : "scale(1)",
-            }}
-          />
-        ) : (
-          <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "#333" }}>◈</div>
-        )}
+    return (
+      <>
+        <div
+          onClick={() => setModalOpen(true)}
+          style={{
+            position: "relative",
+            borderRadius: "10px",
+            overflow: "hidden",
+            cursor: "pointer",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.07)"}`,
+            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : "0 4px 16px rgba(0,0,0,0.5)",
+            userSelect: "none",
+            aspectRatio: "2/3",
+            background: "#111",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          {img ? (
+            <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          ) : (
+            <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "#333" }}>◈</div>
+          )}
 
-        {/* Persistent gradient + title at top */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, transparent 100%)",
-          padding: "10px 10px 20px",
-        }}>
+          {/* Title gradient at top */}
           <div style={{
-            fontSize: "12px", fontWeight: 700, color: "#fff",
-            fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.03em",
-            lineHeight: 1.25,
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-          }}>{title}</div>
-          {epNum && (
-            <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>
+            position: "absolute", top: 0, left: 0, right: 0,
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, transparent 100%)",
+            padding: "10px 10px 20px",
+          }}>
+            <div style={{
+              fontSize: "12px", fontWeight: 700, color: "#fff",
+              fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.03em", lineHeight: 1.25,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>{title}</div>
+            {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>}
+          </div>
+
+          {/* LIVE badge */}
+          {isAiringNow && (
+            <div style={{
+              position: "absolute", top: 8, right: 8,
+              background: "rgba(220,38,38,0.9)", color: "#fff",
+              fontSize: "8px", fontWeight: 800, padding: "2px 6px",
+              borderRadius: "3px", letterSpacing: "0.07em",
+              display: "flex", alignItems: "center", gap: "4px",
+            }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+              LIVE
+            </div>
+          )}
+
+          {/* Stream count badge at bottom */}
+          {streamEntries.length > 0 && (
+            <div style={{
+              position: "absolute", bottom: 8, left: 8,
+              background: "rgba(0,0,0,0.7)", borderRadius: "4px",
+              padding: "2px 6px", fontSize: "9px", color: "#888",
+              fontFamily: "monospace", backdropFilter: "blur(4px)",
+            }}>▶ {streamEntries.length}</div>
           )}
         </div>
 
-        {/* Slide-in stream logos overlay from bottom on touch/hover */}
-        {streamEntries.length > 0 && (
-          <div style={{
-            position: "absolute", bottom: 0, left: 0, right: 0,
-            background: "linear-gradient(to top, rgba(0,0,0,0.95) 60%, transparent 100%)",
-            padding: "20px 10px 10px",
-            transform: revealed ? "translateY(0)" : "translateY(100%)",
-            transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
-            display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "flex-end",
-          }}>
-            {streamEntries.map(([site, url]) => {
-              const color = getStreamColor(site);
-              return (
-                <a key={site} href={url} target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ textDecoration: "none" }}
-                >
-                  <span style={{
-                    fontSize: "9px", fontWeight: 800, padding: "3px 7px",
-                    borderRadius: "4px", fontFamily: "monospace", letterSpacing: "0.05em",
-                    background: color + "33",
-                    color: color,
-                    border: `1px solid ${color}88`,
-                    display: "inline-block",
-                  }}>{site}</span>
-                </a>
-              );
-            })}
-          </div>
+        {modalOpen && (
+          <ShowModal
+            show={show}
+            title={title}
+            epNum={epNum}
+            img={img}
+            streamEntries={streamEntries}
+            isAiringNow={isAiringNow}
+            onClose={() => setModalOpen(false)}
+          />
         )}
-
-        {/* LIVE NOW badge */}
-        {isAiringNow && (
-          <div style={{
-            position: "absolute", top: 8, right: 8,
-            background: "rgba(220,38,38,0.9)", color: "#fff",
-            fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-            borderRadius: "3px", letterSpacing: "0.07em",
-            display: "flex", alignItems: "center", gap: "4px",
-          }}>
-            <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-            LIVE
-          </div>
-        )}
-      </div>
+      </>
     );
-
-    if (primaryUrl) {
-      return (
-        <a href={primaryUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block" }}>
-          {mobileCard}
-        </a>
-      );
-    }
-    return mobileCard;
   }
 
   // ── Desktop row card ─────────────────────────────────────────────────────────
@@ -1203,6 +1310,7 @@ function AiringPage({ isMobile = false }) {
                           return (
                             <ShowCard
                               key={i}
+                              show={show}
                               title={title}
                               epNum={epNum}
                               img={img}
@@ -1724,7 +1832,7 @@ function AdminRow({ anime, onSaved }) {
   );
 }
 
-function AdminPage({ onLogout }) {
+function AdminPage({ onLogout, onSync }) {
   const [allAnime, setAllAnime] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1732,7 +1840,26 @@ function AdminPage({ onLogout }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(null);
+  const [syncDone, setSyncDone] = useState(false);
   const PER_PAGE = 50;
+
+  const doSync = async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncDone(false); setSyncProgress(null);
+    try {
+      await onSync(prog => setSyncProgress(prog));
+      setSyncDone(true);
+      setTimeout(() => setSyncDone(false), 4000);
+      // Reload the list after sync
+      const items = await sbAnime.getAll();
+      const sorted = items.sort((a,b)=>(a.title?.english||a.title?.romaji||"").localeCompare(b.title?.english||b.title?.romaji||""));
+      setAllAnime(sorted);
+      setTotalCount(sorted.length);
+    } catch {}
+    setSyncing(false); setSyncProgress(null);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -1760,7 +1887,7 @@ function AdminPage({ onLogout }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#080808", fontFamily:"'Nunito',sans-serif", color:"#e0e0e0" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} body{background:#080808;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#080808;} ::-webkit-scrollbar-thumb{background:#1f0505;border-radius:3px;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} body{background:#080808;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#080808;} ::-webkit-scrollbar-thumb{background:#1f0505;border-radius:3px;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
       <header style={{ background:"rgba(8,8,8,0.97)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(220,38,38,0.15)", position:"sticky", top:0, zIndex:100, padding:"0 24px" }}>
@@ -1771,7 +1898,27 @@ function AdminPage({ onLogout }) {
           </div>
           <div style={{ background:"rgba(220,38,38,0.12)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"5px", padding:"3px 10px", fontSize:"11px", color:"#f87171", fontWeight:700, letterSpacing:"0.08em" }}>ADMIN</div>
           <div style={{ flex:1 }} />
+          {/* Sync progress inline */}
+          {syncing && syncProgress && (
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", fontSize:"11px", color:"#f87171" }}>
+              <div style={{ width:"5px", height:"5px", borderRadius:"50%", background:"#dc2626", animation:"pulse 1s infinite", flexShrink:0 }} />
+              <span style={{ maxWidth:"180px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{syncProgress.phase}</span>
+              <span style={{ fontFamily:"monospace", color:"#333" }}>{(syncProgress.fetched||0).toLocaleString()}</span>
+            </div>
+          )}
           <span style={{ fontSize:"12px", color:"#333", fontFamily:"monospace" }}>{totalCount.toLocaleString()} titles</span>
+          <button onClick={doSync} disabled={syncing} style={{
+            background: syncing ? "rgba(220,38,38,0.08)" : syncDone ? "rgba(74,222,128,0.1)" : "rgba(220,38,38,0.12)",
+            border: `1px solid ${syncing ? "rgba(220,38,38,0.2)" : syncDone ? "rgba(74,222,128,0.3)" : "rgba(220,38,38,0.35)"}`,
+            color: syncDone ? "#4ade80" : "#f87171",
+            borderRadius:"6px", padding:"5px 12px", fontSize:"12px", fontWeight:600,
+            cursor: syncing ? "not-allowed" : "pointer", fontFamily:"inherit",
+            display:"flex", alignItems:"center", gap:"6px", transition:"all 0.2s",
+            opacity: syncing ? 0.7 : 1,
+          }}>
+            <span style={{ display:"inline-block", animation: syncing ? "spin 1s linear infinite" : "none" }}>↻</span>
+            {syncing ? "Syncing…" : syncDone ? "Sync complete" : "Sync DB"}
+          </button>
           <button onClick={onLogout} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"6px", padding:"5px 12px", color:"#555", fontSize:"12px", cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
         </div>
       </header>
@@ -1901,7 +2048,7 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       setAuthSession(session);
     }} />;
-    return <AdminPage onLogout={async () => { await supabase.auth.signOut(); setAuthSession(null); }} />;
+    return <AdminPage onLogout={async () => { await supabase.auth.signOut(); setAuthSession(null); }} onSync={runFullSync} />;
   }
 
   const startSync = useCallback(async () => {
@@ -1948,6 +2095,7 @@ export default function App() {
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes fadeIn  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
         input, button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
       `}</style>
 
@@ -1986,35 +2134,13 @@ export default function App() {
               </nav>
             )}
 
-            {/* Sync refresh button in header on mobile */}
-            {isMobile && (
-              <button onClick={manualSync} style={{
-                background: "transparent", border: "1px solid rgba(220,38,38,0.3)",
-                color: "#dc2626", borderRadius: "6px", padding: "6px 10px",
-                fontSize: "13px", cursor: "pointer", fontFamily: "inherit",
-              }}>↻</button>
-            )}
+
           </div>
         </header>
 
         <div style={{ height: "2px", background: "linear-gradient(90deg, #dc2626, #7f1d1d 40%, transparent)" }} />
 
-        {/* Sync banner — hide on mobile to save space, button is in header */}
-        {!isMobile && <SyncBanner syncState={syncState} onManualSync={manualSync} />}
 
-        {/* Slim mobile sync status bar */}
-        {isMobile && syncState.syncing && (
-          <div style={{ background: "rgba(220,38,38,0.08)", padding: "6px 12px", borderBottom: "1px solid rgba(220,38,38,0.15)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#dc2626", animation: "pulse 1s infinite" }} />
-              <span style={{ fontSize: "11px", color: "#f87171", fontWeight: 600 }}>{syncState.progress?.phase || "Syncing..."}</span>
-              <span style={{ fontSize: "10px", color: "#444", marginLeft: "auto", fontFamily: "monospace" }}>{(syncState.progress?.fetched||0).toLocaleString()}</span>
-            </div>
-            <div style={{ height: "2px", background: "#150505", borderRadius: "1px", overflow: "hidden" }}>
-              <div style={{ height: "100%", background: "linear-gradient(90deg,#dc2626,#f87171)", width: `${syncState.progress ? Math.round((syncState.progress.taskIndex/syncState.progress.taskTotal)*100) : 0}%`, transition: "width 0.4s" }} />
-            </div>
-          </div>
-        )}
 
         <main
           style={{ maxWidth: "1100px", margin: "0 auto", padding: mainPad, animation: "fadeIn 0.3s ease" }}
