@@ -693,7 +693,7 @@ function SyncBanner({ syncState, onManualSync }) {
 }
 
 // ─── Show Modal (mobile) ─────────────────────────────────────────────────────
-function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClose }) {
+function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewDub, onClose }) {
   const [dbData, setDbData] = useState(null);
 
   // Lock body scroll while open
@@ -905,18 +905,26 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             backdropFilter: "blur(4px)",
           }}>×</button>
-          {isAiringNow && (
-            <div style={{
-              position: "absolute", top: "12px", left: "12px",
-              background: "rgba(220,38,38,0.9)", color: "#fff",
-              fontSize: "9px", fontWeight: 800, padding: "3px 8px",
-              borderRadius: "4px", letterSpacing: "0.07em",
-              display: "flex", alignItems: "center", gap: "4px",
-            }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-              AIRING NOW
-            </div>
-          )}
+          <div style={{ position: "absolute", top: "12px", left: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
+            {isNewDub && (
+              <div style={{
+                background: "rgba(250,204,21,0.92)", color: "#000",
+                fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+                borderRadius: "4px", letterSpacing: "0.07em", alignSelf: "flex-start",
+              }}>★ NEW DUB — EP 1</div>
+            )}
+            {isAiringNow && (
+              <div style={{
+                background: "rgba(220,38,38,0.9)", color: "#fff",
+                fontSize: "9px", fontWeight: 800, padding: "3px 8px",
+                borderRadius: "4px", letterSpacing: "0.07em",
+                display: "flex", alignItems: "center", gap: "4px", alignSelf: "flex-start",
+              }}>
+                <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+                AIRING NOW
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Scrollable body ── */}
@@ -1059,7 +1067,7 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
 }
 
 // ─── ShowCard (calendar) ──────────────────────────────────────────────────────
-function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isMobile }) {
+function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isNewDub, isMobile }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
@@ -1075,8 +1083,8 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             borderRadius: "10px",
             overflow: "hidden",
             cursor: "pointer",
-            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : "rgba(255,255,255,0.07)"}`,
-            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : "0 4px 16px rgba(0,0,0,0.5)",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : isNewDub ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.07)"}`,
+            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : isNewDub ? "0 0 14px rgba(250,204,21,0.12)" : "0 4px 16px rgba(0,0,0,0.5)",
             userSelect: "none",
             aspectRatio: "2/3",
             background: "#111",
@@ -1103,19 +1111,27 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>}
           </div>
 
-          {/* LIVE badge */}
-          {isAiringNow && (
-            <div style={{
-              position: "absolute", top: 8, right: 8,
-              background: "rgba(220,38,38,0.9)", color: "#fff",
-              fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-              borderRadius: "3px", letterSpacing: "0.07em",
-              display: "flex", alignItems: "center", gap: "4px",
-            }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-              LIVE
-            </div>
-          )}
+          {/* Badges — top right stack */}
+          <div style={{ position: "absolute", top: 8, right: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-end" }}>
+            {isNewDub && (
+              <div style={{
+                background: "rgba(250,204,21,0.92)", color: "#000",
+                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
+                borderRadius: "3px", letterSpacing: "0.07em",
+              }}>★ NEW DUB</div>
+            )}
+            {isAiringNow && (
+              <div style={{
+                background: "rgba(220,38,38,0.9)", color: "#fff",
+                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
+                borderRadius: "3px", letterSpacing: "0.07em",
+                display: "flex", alignItems: "center", gap: "4px",
+              }}>
+                <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
+                LIVE
+              </div>
+            )}
+          </div>
 
           {/* Stream count badge at bottom */}
           {streamEntries.length > 0 && (
@@ -1136,6 +1152,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             img={img}
             streamEntries={streamEntries}
             isAiringNow={isAiringNow}
+            isNewDub={isNewDub}
             onClose={() => setModalOpen(false)}
           />
         )}
@@ -1153,7 +1170,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
       onMouseLeave={() => setHovered(false)}
       style={{
         background: hovered ? hoverBg : "#0f0f0f",
-        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.06)"}`,
+        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : "rgba(255,255,255,0.06)"}`,
         borderRadius: "9px", overflow: "hidden",
         display: "flex", alignItems: "stretch",
         cursor: primaryUrl ? "pointer" : "default",
@@ -1184,6 +1201,14 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             <span style={{ flexShrink: 0, fontSize: "11px", color: hovered && accentColor ? accentColor : "#444", fontFamily: "monospace", fontWeight: 600, transition: "color 0.15s" }}>
               Ep {epNum}
             </span>
+          )}
+          {isNewDub && (
+            <span style={{
+              flexShrink: 0, fontSize: "9px", fontWeight: 800,
+              background: "rgba(250,204,21,0.15)", color: "#facc15",
+              border: "1px solid rgba(250,204,21,0.35)",
+              borderRadius: "4px", padding: "1px 6px", letterSpacing: "0.06em",
+            }}>★ NEW DUB</span>
           )}
         </div>
 
@@ -1559,6 +1584,7 @@ function AiringPage({ isMobile = false }) {
                           const primaryUrl = streamEntries[0]?.[1] || null;
                           const primaryColor = getStreamColor(primarySite);
 
+                          const isNewDub = epNum === 1;
                           return (
                             <ShowCard
                               key={i}
@@ -1570,6 +1596,7 @@ function AiringPage({ isMobile = false }) {
                               primaryUrl={primaryUrl}
                               primaryColor={primaryColor}
                               isAiringNow={isAiringNow}
+                              isNewDub={isNewDub}
                               isMobile={isMobile}
                             />
                           );
