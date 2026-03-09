@@ -338,10 +338,11 @@ async function checkNeedsSync() {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const NAV = [
-  { id: "airing",   label: "Dub Calendar",  icon: "◷" },
-  { id: "upcoming", label: "Upcoming",       icon: "◈" },
-  { id: "search",   label: "Search",         icon: "⌕" },
-  { id: "watch",    label: "Where to Watch", icon: "◉" },
+  { id: "airing",          label: "Dub Calendar",    icon: "◷" },
+  { id: "upcoming",        label: "Upcoming",         icon: "◈" },
+  { id: "search",          label: "Search",           icon: "⌕" },
+  { id: "watch",           label: "Where to Watch",   icon: "◉" },
+  { id: "recently_dubbed", label: "Recently Dubbed",  icon: "▶" },
 ];
 
 const DAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -1865,6 +1866,12 @@ function useBreakpoint() {
 }
 
 // ─── Mobile Bottom Nav ────────────────────────────────────────────────────────
+const MOBILE_NAV = [
+  { id: "airing",          label: "Dub",             icon: "◷" },
+  { id: "recently_dubbed", label: "Recent",           icon: "▶" },
+  { id: "search",          label: "Search",           icon: "⌕" },
+];
+
 function MobileNav({ page, setPage }) {
   return (
     <nav style={{
@@ -1874,7 +1881,7 @@ function MobileNav({ page, setPage }) {
       display: "flex", alignItems: "stretch",
       paddingBottom: "env(safe-area-inset-bottom)",
     }}>
-      {NAV.map(n => {
+      {MOBILE_NAV.map(n => {
         const active = page === n.id;
         return (
           <button key={n.id} onClick={() => setPage(n.id)} style={{
@@ -1888,7 +1895,7 @@ function MobileNav({ page, setPage }) {
           }}>
             <span style={{ fontSize: "16px", lineHeight: 1 }}>{n.icon}</span>
             <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              {n.label.split(" ")[0]}
+              {n.label}
             </span>
           </button>
         );
@@ -2431,10 +2438,17 @@ export default function App() {
           style={{ maxWidth: "1100px", margin: "0 auto", padding: mainPad, animation: "fadeIn 0.3s ease" }}
           key={page}
         >
-          {page === "airing"   && <AiringPage   isMobile={isMobile} />}
-          {page === "upcoming" && <UpcomingPage gridMinCard={gridMinCard} />}
-          {page === "search"   && <SearchPage   gridMinCard={gridMinCard} isMobile={isMobile} />}
-          {page === "watch"    && <WatchPage isMobile={isMobile} />}
+          {page === "airing"          && <AiringPage   isMobile={isMobile} />}
+          {page === "upcoming"        && <UpcomingPage gridMinCard={gridMinCard} />}
+          {page === "search"          && <SearchPage   gridMinCard={gridMinCard} isMobile={isMobile} />}
+          {page === "watch"           && <WatchPage isMobile={isMobile} />}
+          {page === "recently_dubbed" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", gap: "12px", color: "#333" }}>
+              <span style={{ fontSize: "32px" }}>▶</span>
+              <div style={{ fontSize: "16px", fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: "#444", letterSpacing: "0.05em" }}>Recently Dubbed</div>
+              <div style={{ fontSize: "12px", color: "#333" }}>Coming soon</div>
+            </div>
+          )}
         </main>
 
         {!isMobile && (
