@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
@@ -878,13 +878,51 @@ function ShowCard({ title, epNum, img, streamEntries, primaryUrl, primaryColor, 
 
 // ─── Pages ────────────────────────────────────────────────────────────────────
 function AiringPage({ isMobile = false }) {
-  const todayIndex = new Date().getDay(); // local day, 0=Sun
+  const todayIndex = new Date().getDay();
   const [activeDay, setActiveDay] = useState(todayIndex);
   const [grouped, setGrouped] = useState(null);
-  const [enriched, setEnriched] = useState({}); // { "showRoute": { streams } }
+  const [enriched, setEnriched] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetch, setLastFetch] = useState(null);
+
+  // ── Search state ──────────────────────────────────────────────────────────
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSource, setSearchSource] = useState("local");
+  const searchRef = useRef(null);
+
+  // Close search on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") { setSearchFocused(false); setSearchQuery(""); setSearchResults([]); } };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const doSearch = useCallback(async (q) => {
+    if (!q.trim()) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    try {
+      if (searchSource === "local") {
+        const matches = await sbAnime.search(q);
+        setSearchResults(matches);
+      } else {
+        const data = await anilistFetch(SEARCH_QUERY, { search: q, page: 1, perPage: 40 });
+        const items = (data?.Page?.media || []).map(m => ({ ...m, dubStatus: detectDubStatus(m), score: m.averageScore || 0 }));
+        setSearchResults(items);
+      }
+    } catch { setSearchResults([]); }
+    setSearchLoading(false);
+  }, [searchSource]);
+
+  // Debounce search as user types
+  useEffect(() => {
+    if (!searchFocused || !searchQuery.trim()) { setSearchResults([]); return; }
+    const t = setTimeout(() => doSearch(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery, searchFocused, doSearch]);
 
   useEffect(() => {
     setLoading(true);
@@ -895,8 +933,6 @@ function AiringPage({ isMobile = false }) {
         setGrouped(g);
         setLastFetch(Date.now());
         setLoading(false);
-
-        // Enrich all shows with streaming links in background (after page is visible)
         try {
           const allShows = Object.values(g).flat();
           const enrichMap = {};
@@ -919,7 +955,6 @@ function AiringPage({ isMobile = false }) {
 
   const todayShows = grouped?.[DAYS[activeDay]] || [];
 
-  // Build a date label for each day tab based on the current week
   const now = new Date();
   const weekDates = DAYS.map((_, i) => {
     const d = new Date(now);
@@ -928,18 +963,113 @@ function AiringPage({ isMobile = false }) {
     return d;
   });
 
+  const showingSearch = searchFocused;
+  const dubFilter = "all";
+
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "28px", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: "#fff", marginBottom: "5px", letterSpacing: "0.05em" }}>
-          Weekly Dub Calendar
-        </h2>
-        <p style={{ color: "#555", fontSize: "13px" }}>
-          English dub air schedule · times in your local timezone
-          {lastFetch ? ` · updated ${new Date(lastFetch).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
-        </p>
+      <div style={{ marginBottom: "16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ opacity: showingSearch ? 0 : 1, transition: "opacity 0.25s ease", pointerEvents: showingSearch ? "none" : "auto" }}>
+          <h2 style={{ fontSize: "28px", fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, color: "#fff", marginBottom: "5px", letterSpacing: "0.05em" }}>
+            Weekly Dub Calendar
+          </h2>
+          <p style={{ color: "#555", fontSize: "13px" }}>
+            English dub air schedule · times in your local timezone
+            {lastFetch ? ` · updated ${new Date(lastFetch).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+          </p>
+        </div>
       </div>
+
+      {/* ── Search bar ── */}
+      <div style={{ marginBottom: "20px", position: "relative" }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: "8px",
+          background: searchFocused ? "#161616" : "#0f0f0f",
+          border: `1px solid ${searchFocused ? "rgba(220,38,38,0.6)" : "rgba(255,255,255,0.1)"}`,
+          borderRadius: searchFocused ? "10px 10px 0 0" : "10px",
+          padding: isMobile ? "12px 14px" : "11px 16px",
+          transition: "all 0.2s ease",
+          boxShadow: searchFocused ? "0 0 0 3px rgba(220,38,38,0.08)" : "none",
+        }}>
+          <span style={{ color: searchFocused ? "#dc2626" : "#444", fontSize: "16px", transition: "color 0.2s", flexShrink: 0 }}>⌕</span>
+          <input
+            ref={searchRef}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            placeholder="Search anime..."
+            style={{
+              flex: 1, background: "transparent", border: "none", outline: "none",
+              color: "#fff", fontSize: isMobile ? "15px" : "14px", fontFamily: "inherit",
+            }}
+          />
+          {/* Source toggle — only visible when focused */}
+          <div style={{
+            display: "flex", gap: "5px", opacity: searchFocused ? 1 : 0,
+            transition: "opacity 0.2s", pointerEvents: searchFocused ? "auto" : "none", flexShrink: 0,
+          }}>
+            {["local", "api"].map(s => (
+              <button key={s} onClick={() => { setSearchSource(s); if (searchQuery) doSearch(searchQuery); }} style={{
+                background: searchSource === s ? "rgba(220,38,38,0.2)" : "transparent",
+                border: searchSource === s ? "1px solid rgba(220,38,38,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                color: searchSource === s ? "#f87171" : "#444",
+                borderRadius: "5px", padding: "3px 8px", fontSize: "10px",
+                fontWeight: 700, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.04em",
+              }}>{s === "local" ? "DB" : "API"}</button>
+            ))}
+          </div>
+          {/* Clear / close button */}
+          {searchFocused && (
+            <button onClick={() => { setSearchFocused(false); setSearchQuery(""); setSearchResults([]); }} style={{
+              background: "transparent", border: "none", color: "#555", cursor: "pointer",
+              fontSize: "18px", lineHeight: 1, padding: "0 2px", flexShrink: 0,
+            }}>×</button>
+          )}
+        </div>
+
+        {/* Search results dropdown */}
+        {searchFocused && (
+          <div style={{
+            position: "absolute", left: 0, right: 0, zIndex: 50,
+            background: "#111", border: "1px solid rgba(220,38,38,0.25)",
+            borderTop: "none", borderRadius: "0 0 10px 10px",
+            maxHeight: "480px", overflowY: "auto",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+          }}>
+            {searchLoading && (
+              <div style={{ padding: "20px", textAlign: "center" }}>
+                <div style={{ display: "inline-flex", gap: "6px" }}>
+                  {[0,1,2].map(i => <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#dc2626", animation: `pulse 1s ${i*0.2}s infinite` }} />)}
+                </div>
+              </div>
+            )}
+            {!searchLoading && searchQuery && searchResults.length === 0 && (
+              <div style={{ padding: "24px", textAlign: "center", color: "#333", fontSize: "13px" }}>
+                No results for "{searchQuery}"
+              </div>
+            )}
+            {!searchLoading && !searchQuery && (
+              <div style={{ padding: "16px 18px", color: "#2a2a2a", fontSize: "12px" }}>
+                Start typing to search {searchSource === "local" ? "your Supabase database" : "AniList live"}
+              </div>
+            )}
+            {!searchLoading && searchResults.length > 0 && (
+              <div>
+                <div style={{ padding: "8px 14px 4px", fontSize: "10px", color: "#333", fontFamily: "monospace", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  {searchResults.length} results · {searchSource === "local" ? "Supabase DB" : "AniList API"}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(110px,1fr))" : "repeat(auto-fill, minmax(140px,1fr))", gap: "10px", padding: "12px" }}>
+                  {searchResults.map(a => <AnimeCard key={a.id} anime={a} />)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Calendar — fades out when search is open */}
+      <div style={{ opacity: showingSearch ? 0 : 1, transition: "opacity 0.25s ease", pointerEvents: showingSearch ? "none" : "auto" }}>
 
       {/* Day tabs */}
       <div style={{
@@ -1097,6 +1227,7 @@ function AiringPage({ isMobile = false }) {
           })()}
         </>
       )}
+      </div> {/* end fading calendar wrapper */}
     </div>
   );
 }
