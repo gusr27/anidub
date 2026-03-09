@@ -2,6 +2,48 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "motion/react";
 
+// ─── usePosterColor — extract dominant color from poster via canvas ───────────
+function usePosterColor(imgUrl) {
+  const [color, setColor] = useState(null);
+  useEffect(() => {
+    if (!imgUrl) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        // Sample a small version for speed
+        canvas.width = 24; canvas.height = 36;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, 24, 36);
+        const data = ctx.getImageData(0, 0, 24, 36).data;
+
+        // Bucket pixels into coarse color groups, pick most frequent vivid one
+        const buckets = {};
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+          if (a < 128) continue;
+          // Skip near-black, near-white, and near-grey
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const saturation = max === 0 ? 0 : (max - min) / max;
+          if (saturation < 0.2 || max < 40 || max > 240) continue;
+          // Quantize to 32-step buckets
+          const key = `${Math.round(r/32)*32},${Math.round(g/32)*32},${Math.round(b/32)*32}`;
+          buckets[key] = (buckets[key] || 0) + 1;
+        }
+        const best = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+        if (best) {
+          const [r, g, b] = best[0].split(",").map(Number);
+          setColor(`rgb(${r},${g},${b})`);
+        }
+      } catch { /* canvas tainted — skip */ }
+    };
+    img.onerror = () => {};
+    img.src = imgUrl;
+  }, [imgUrl]);
+  return color;
+}
+
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
 
@@ -1082,7 +1124,9 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
 function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isNewDub, isMobile }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
+  const posterColor = usePosterColor(img);
+  // posterColor takes priority; fall back to stream color if not yet extracted
+  const accentColor = posterColor || (primaryColor && primaryColor !== "#555" ? primaryColor : null);
 
   // ── Mobile card — poster left, info right ───────────────────────────────────
   if (isMobile) {
@@ -1096,11 +1140,11 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
           style={{
             display: "flex", alignItems: "center", gap: "10px",
             cursor: "pointer",
-            background: isAiringNow ? "rgba(220,38,38,0.05)" : isNewDub ? "rgba(250,204,21,0.04)" : "#0f0f0f",
-            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.35)" : isNewDub ? "rgba(250,204,21,0.3)" : "rgba(255,255,255,0.07)"}`,
+            background: isAiringNow ? "rgba(220,38,38,0.05)" : isNewDub ? "rgba(250,204,21,0.04)" : accentColor ? `${accentColor}12` : "#0f0f0f",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.35)" : isNewDub ? "rgba(250,204,21,0.3)" : accentColor ? `${accentColor}55` : "rgba(255,255,255,0.07)"}`,
             borderRadius: "10px", overflow: "hidden",
             userSelect: "none", WebkitTapHighlightColor: "transparent",
-            boxShadow: isAiringNow ? "0 0 12px rgba(220,38,38,0.15)" : isNewDub ? "0 0 10px rgba(250,204,21,0.08)" : "none",
+            boxShadow: isAiringNow ? "0 0 12px rgba(220,38,38,0.15)" : isNewDub ? "0 0 10px rgba(250,204,21,0.08)" : accentColor ? `0 0 10px ${accentColor}22` : "none",
           }}
         >
           {/* Poster thumbnail — 28vw wide, 2:3 ratio, min 90px max 140px */}
@@ -1207,7 +1251,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
       transition={{ type: "spring", stiffness: 350, damping: 30 }}
       style={{
         background: hovered ? hoverBg : "#0f0f0f",
-        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : "rgba(255,255,255,0.06)"}`,
+        border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : accentColor ? `${accentColor}40` : "rgba(255,255,255,0.06)"}`,
         borderRadius: "9px", overflow: "hidden",
         display: "flex", alignItems: "stretch",
         cursor: primaryUrl ? "pointer" : "default",
