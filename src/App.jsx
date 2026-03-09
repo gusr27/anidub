@@ -745,23 +745,57 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
       }
 
       // 3. Last resort — live AniList search to get canonical ID, then fetch from Supabase
+      // If the show isn't in Supabase yet, fetch full data from AniList and upsert it
       try {
-        const query = `
+        const searchQuery = `
           query ($search: String) {
-            Page(page: 1, perPage: 3) {
+            Page(page: 1, perPage: 5) {
               media(type: ANIME, search: $search, sort: SEARCH_MATCH) {
                 id
-                title { english romaji }
+                title { english romaji native }
+                status season seasonYear episodes averageScore popularity
+                coverImage { large medium color } bannerImage genres format
+                countryOfOrigin startDate { year month day }
+                nextAiringEpisode { episode airingAt }
+                studios(isMain: true) { nodes { name } }
+                externalLinks { site url type language }
+                streamingEpisodes { title thumbnail url site }
+                synonyms description(asHtml: false)
               }
             }
           }`;
-        const data = await anilistFetch(query, { search: romaji || english });
+        const searchTerm = romaji || english;
+        const data = await anilistFetch(searchQuery, { search: searchTerm });
         const candidates = data?.Page?.media || [];
+
         for (const c of candidates) {
-          const row = await sbAnime.getById(c.id);
+          // Check Supabase first
+          let row = await sbAnime.getById(c.id);
           if (row) return row;
+
+          // Not in DB — check title similarity before inserting
+          const cEn = (c.title?.english || "").toLowerCase();
+          const cRo = (c.title?.romaji  || "").toLowerCase();
+          const target = searchTerm.toLowerCase();
+          const isSimilar = cEn.includes(target) || cRo.includes(target) ||
+                            target.includes(cEn)  || target.includes(cRo) ||
+                            (c.synonyms || []).some(s => s.toLowerCase().includes(target) || target.includes(s.toLowerCase()));
+
+          if (isSimilar) {
+            // Upsert into Supabase so future lookups are instant
+            const enriched = { ...c, dubStatus: detectDubStatus(c), score: c.averageScore || 0 };
+            await sbAnime.upsertBatch([enriched]).catch(() => {});
+            return normaliseRow({
+              ...enriched,
+              cover_image: c.coverImage, banner_image: c.bannerImage,
+              country_of_origin: c.countryOfOrigin, start_date: c.startDate,
+              next_airing_episode: c.nextAiringEpisode, external_links: c.externalLinks,
+              streaming_episodes: c.streamingEpisodes, season_year: c.seasonYear,
+              dub_status: enriched.dubStatus,
+            });
+          }
         }
-      } catch { /* AniList unavailable — swallow */ }
+      } catch { /* AniList unavailable */ }
 
       return null;
     };
@@ -1038,76 +1072,83 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
   const [hovered, setHovered] = useState(false);
   const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
 
-  // ── Mobile poster card ───────────────────────────────────────────────────────
+  // ── Mobile card — poster left, info right ───────────────────────────────────
   if (isMobile) {
     return (
       <>
         <div
           onClick={() => setModalOpen(true)}
           style={{
-            position: "relative",
-            borderRadius: "10px",
-            overflow: "hidden",
+            display: "flex", alignItems: "center", gap: "10px",
             cursor: "pointer",
-            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : isNewDub ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.07)"}`,
-            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : isNewDub ? "0 0 14px rgba(250,204,21,0.12)" : "0 4px 16px rgba(0,0,0,0.5)",
-            userSelect: "none",
-            aspectRatio: "2/3",
-            background: "#111",
-            WebkitTapHighlightColor: "transparent",
+            background: isAiringNow ? "rgba(220,38,38,0.05)" : isNewDub ? "rgba(250,204,21,0.04)" : "#0f0f0f",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.35)" : isNewDub ? "rgba(250,204,21,0.3)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: "10px", overflow: "hidden",
+            userSelect: "none", WebkitTapHighlightColor: "transparent",
+            boxShadow: isAiringNow ? "0 0 12px rgba(220,38,38,0.15)" : isNewDub ? "0 0 10px rgba(250,204,21,0.08)" : "none",
           }}
         >
-          {img ? (
-            <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "#333" }}>◈</div>
-          )}
-
-          {/* Title + ep at bottom */}
-          <div style={{
-            position: "absolute", bottom: 0, left: 0, right: 0,
-            background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 55%, transparent 100%)",
-            padding: "32px 10px 10px",
-          }}>
-            <div style={{
-              fontSize: "13px", fontWeight: 700, color: "#fff",
-              fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.03em", lineHeight: 1.25,
-              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-            }}>{title}</div>
-            {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "3px" }}>Ep {epNum}</div>}
+          {/* Poster thumbnail */}
+          <div style={{ flexShrink: 0, width: "56px", height: "80px" }}>
+            {img ? (
+              <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "#333" }}>◈</div>
+            )}
           </div>
 
-          {/* Badges — top left */}
-          <div style={{ position: "absolute", top: 8, left: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
-            {isNewDub && (
-              <div style={{
-                background: "rgba(250,204,21,0.92)", color: "#000",
-                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-                borderRadius: "3px", letterSpacing: "0.07em",
-              }}>★ NEW DUB</div>
-            )}
-            {isAiringNow && (
-              <div style={{
-                background: "rgba(220,38,38,0.9)", color: "#fff",
-                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-                borderRadius: "3px", letterSpacing: "0.07em",
-                display: "flex", alignItems: "center", gap: "4px",
-              }}>
-                <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-                LIVE
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, padding: "10px 10px 10px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px" }}>
+            <div style={{
+              fontSize: "13px", fontWeight: 700, color: "#fff",
+              fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.02em", lineHeight: 1.25,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>{title}</div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+              {epNum && (
+                <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace", fontWeight: 600 }}>Ep {epNum}</span>
+              )}
+              {isNewDub && (
+                <span style={{
+                  fontSize: "8px", fontWeight: 800, padding: "1px 5px",
+                  background: "rgba(250,204,21,0.15)", color: "#facc15",
+                  border: "1px solid rgba(250,204,21,0.35)", borderRadius: "3px", letterSpacing: "0.06em",
+                }}>★ NEW DUB</span>
+              )}
+              {isAiringNow && (
+                <span style={{
+                  fontSize: "8px", fontWeight: 800, padding: "1px 5px",
+                  background: "rgba(220,38,38,0.2)", color: "#f87171",
+                  border: "1px solid rgba(220,38,38,0.4)", borderRadius: "3px", letterSpacing: "0.06em",
+                  display: "inline-flex", alignItems: "center", gap: "3px",
+                }}>
+                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#f87171", animation: "pulse 1s infinite", display: "inline-block" }} />
+                  LIVE
+                </span>
+              )}
+            </div>
+
+            {/* Stream pills */}
+            {streamEntries.length > 0 && (
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                {streamEntries.slice(0, 3).map(([site, url]) => {
+                  const color = getStreamColor(site);
+                  return (
+                    <a key={site} href={url} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()} style={{ textDecoration: "none" }}>
+                      <span style={{
+                        fontSize: "9px", fontWeight: 700, padding: "1px 6px",
+                        borderRadius: "3px", fontFamily: "monospace",
+                        background: color + "18", color, border: `1px solid ${color}44`,
+                        display: "inline-block",
+                      }}>{site}</span>
+                    </a>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {/* Stream count — bottom right */}
-          {streamEntries.length > 0 && (
-            <div style={{
-              position: "absolute", top: 8, right: 8,
-              background: "rgba(0,0,0,0.65)", borderRadius: "4px",
-              padding: "2px 6px", fontSize: "9px", color: "#888",
-              fontFamily: "monospace", backdropFilter: "blur(4px)",
-            }}>▶ {streamEntries.length}</div>
-          )}
         </div>
 
         {modalOpen && (
@@ -1532,10 +1573,9 @@ function AiringPage({ isMobile = false }) {
 
                       {/* Show cards for this time slot */}
                       <div style={{
-                        display: isMobile ? "grid" : "flex",
-                        gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(270px, 1fr))" : undefined,
-                        flexDirection: isMobile ? undefined : "column",
-                        gap: isMobile ? "12px" : "6px",
+                        display: isMobile ? "flex" : "flex",
+                        flexDirection: "column",
+                        gap: isMobile ? "6px" : "6px",
                       }}>
                         {shows.map((show, i) => {
                           const title = show.english || show.romaji || show.title || "Unknown";
