@@ -699,8 +699,14 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
     : null;
   const genres = dbData?.genres || [];
 
-  // Last aired — use episodeDate from AnimeSchedule
-  const lastAiredDate = show.episodeDate ? new Date(show.episodeDate) : null;
+  // episodeDate from AnimeSchedule = the air date of this week's episode.
+  // If it's in the past → it's the last aired episode.
+  // If it's in the future → it's the upcoming episode (use nextAiringEpisode from DB instead for "Next Ep").
+  const schedDate = show.episodeDate ? new Date(show.episodeDate) : null;
+  const schedIsPast = schedDate && schedDate.getTime() < Date.now();
+
+  // Last aired — only use schedDate if it has already passed
+  const lastAiredDate = schedIsPast ? schedDate : null;
   const isToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
   const lastAiredLabel = lastAiredDate
     ? isToday
@@ -708,12 +714,18 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
       : lastAiredDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
 
-  // Next episode from DB
+  // Next episode — prefer DB nextAiringEpisode, but if schedDate is in the future use that
   const nextEp = dbData?.nextAiringEpisode;
-  const nextEpLabel = nextEp?.airingAt
-    ? new Date(nextEp.airingAt * 1000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+  const nextEpFromSched = !schedIsPast && schedDate ? { airingAt: schedDate.getTime() / 1000, episode: show.episodeNumber } : null;
+  const resolvedNextEp = nextEp || nextEpFromSched;
+  const nextEpLabel = resolvedNextEp?.airingAt
+    ? (() => {
+        const d = new Date(resolvedNextEp.airingAt * 1000);
+        const isNextToday = new Date().toDateString() === d.toDateString();
+        return isNextToday ? "Today" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      })()
     : null;
-  const nextEpNum = nextEp?.episode || null;
+  const nextEpNum = resolvedNextEp?.episode || null;
 
   const infoBoxStyle = {
     background: "#0d0d0d", borderRadius: "10px",
@@ -805,10 +817,10 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
             {/* Last aired */}
             <div style={infoBoxStyle}>
               <span style={infoLabelStyle}>Last Ep</span>
-              <span style={{ ...infoValueStyle, color: isToday ? "#4ade80" : "#e0e0e0", fontSize: lastAiredLabel && lastAiredLabel.length > 8 ? "11px" : "13px" }}>
+              <span style={{ ...infoValueStyle, color: isToday ? "#4ade80" : lastAiredLabel ? "#e0e0e0" : "#333", fontSize: lastAiredLabel && lastAiredLabel.length > 8 ? "11px" : "13px" }}>
                 {lastAiredLabel || "—"}
               </span>
-              {epNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {epNum}</span>}
+              {lastAiredLabel && epNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {epNum}</span>}
             </div>
 
             {/* Next episode */}
@@ -816,7 +828,7 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
               <span style={infoLabelStyle}>Next Ep</span>
               {nextEpLabel ? (
                 <>
-                  <span style={{ ...infoValueStyle, fontSize: "11px" }}>{nextEpLabel}</span>
+                  <span style={{ ...infoValueStyle, fontSize: nextEpLabel.length > 8 ? "11px" : "13px", color: nextEpLabel === "Today" ? "#4ade80" : "#e0e0e0" }}>{nextEpLabel}</span>
                   {nextEpNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {nextEpNum}</span>}
                 </>
               ) : (
