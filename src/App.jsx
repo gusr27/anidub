@@ -1724,7 +1724,7 @@ function AdminRow({ anime, onSaved }) {
   );
 }
 
-function AdminPage({ onLogout }) {
+function AdminPage({ onLogout, onSync }) {
   const [allAnime, setAllAnime] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1732,7 +1732,26 @@ function AdminPage({ onLogout }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(null);
+  const [syncDone, setSyncDone] = useState(false);
   const PER_PAGE = 50;
+
+  const doSync = async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncDone(false); setSyncProgress(null);
+    try {
+      await onSync(prog => setSyncProgress(prog));
+      setSyncDone(true);
+      setTimeout(() => setSyncDone(false), 4000);
+      // Reload the list after sync
+      const items = await sbAnime.getAll();
+      const sorted = items.sort((a,b)=>(a.title?.english||a.title?.romaji||"").localeCompare(b.title?.english||b.title?.romaji||""));
+      setAllAnime(sorted);
+      setTotalCount(sorted.length);
+    } catch {}
+    setSyncing(false); setSyncProgress(null);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -1760,7 +1779,7 @@ function AdminPage({ onLogout }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#080808", fontFamily:"'Nunito',sans-serif", color:"#e0e0e0" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} body{background:#080808;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#080808;} ::-webkit-scrollbar-thumb{background:#1f0505;border-radius:3px;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} body{background:#080808;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#080808;} ::-webkit-scrollbar-thumb{background:#1f0505;border-radius:3px;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}} @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}} @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}
       <header style={{ background:"rgba(8,8,8,0.97)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(220,38,38,0.15)", position:"sticky", top:0, zIndex:100, padding:"0 24px" }}>
@@ -1771,7 +1790,27 @@ function AdminPage({ onLogout }) {
           </div>
           <div style={{ background:"rgba(220,38,38,0.12)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"5px", padding:"3px 10px", fontSize:"11px", color:"#f87171", fontWeight:700, letterSpacing:"0.08em" }}>ADMIN</div>
           <div style={{ flex:1 }} />
+          {/* Sync progress inline */}
+          {syncing && syncProgress && (
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", fontSize:"11px", color:"#f87171" }}>
+              <div style={{ width:"5px", height:"5px", borderRadius:"50%", background:"#dc2626", animation:"pulse 1s infinite", flexShrink:0 }} />
+              <span style={{ maxWidth:"180px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{syncProgress.phase}</span>
+              <span style={{ fontFamily:"monospace", color:"#333" }}>{(syncProgress.fetched||0).toLocaleString()}</span>
+            </div>
+          )}
           <span style={{ fontSize:"12px", color:"#333", fontFamily:"monospace" }}>{totalCount.toLocaleString()} titles</span>
+          <button onClick={doSync} disabled={syncing} style={{
+            background: syncing ? "rgba(220,38,38,0.08)" : syncDone ? "rgba(74,222,128,0.1)" : "rgba(220,38,38,0.12)",
+            border: `1px solid ${syncing ? "rgba(220,38,38,0.2)" : syncDone ? "rgba(74,222,128,0.3)" : "rgba(220,38,38,0.35)"}`,
+            color: syncDone ? "#4ade80" : "#f87171",
+            borderRadius:"6px", padding:"5px 12px", fontSize:"12px", fontWeight:600,
+            cursor: syncing ? "not-allowed" : "pointer", fontFamily:"inherit",
+            display:"flex", alignItems:"center", gap:"6px", transition:"all 0.2s",
+            opacity: syncing ? 0.7 : 1,
+          }}>
+            <span style={{ display:"inline-block", animation: syncing ? "spin 1s linear infinite" : "none" }}>↻</span>
+            {syncing ? "Syncing…" : syncDone ? "Sync complete" : "Sync DB"}
+          </button>
           <button onClick={onLogout} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"6px", padding:"5px 12px", color:"#555", fontSize:"12px", cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
         </div>
       </header>
@@ -1901,7 +1940,7 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       setAuthSession(session);
     }} />;
-    return <AdminPage onLogout={async () => { await supabase.auth.signOut(); setAuthSession(null); }} />;
+    return <AdminPage onLogout={async () => { await supabase.auth.signOut(); setAuthSession(null); }} onSync={runFullSync} />;
   }
 
   const startSync = useCallback(async () => {
@@ -1986,35 +2025,13 @@ export default function App() {
               </nav>
             )}
 
-            {/* Sync refresh button in header on mobile */}
-            {isMobile && (
-              <button onClick={manualSync} style={{
-                background: "transparent", border: "1px solid rgba(220,38,38,0.3)",
-                color: "#dc2626", borderRadius: "6px", padding: "6px 10px",
-                fontSize: "13px", cursor: "pointer", fontFamily: "inherit",
-              }}>↻</button>
-            )}
+
           </div>
         </header>
 
         <div style={{ height: "2px", background: "linear-gradient(90deg, #dc2626, #7f1d1d 40%, transparent)" }} />
 
-        {/* Sync banner — hide on mobile to save space, button is in header */}
-        {!isMobile && <SyncBanner syncState={syncState} onManualSync={manualSync} />}
 
-        {/* Slim mobile sync status bar */}
-        {isMobile && syncState.syncing && (
-          <div style={{ background: "rgba(220,38,38,0.08)", padding: "6px 12px", borderBottom: "1px solid rgba(220,38,38,0.15)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#dc2626", animation: "pulse 1s infinite" }} />
-              <span style={{ fontSize: "11px", color: "#f87171", fontWeight: 600 }}>{syncState.progress?.phase || "Syncing..."}</span>
-              <span style={{ fontSize: "10px", color: "#444", marginLeft: "auto", fontFamily: "monospace" }}>{(syncState.progress?.fetched||0).toLocaleString()}</span>
-            </div>
-            <div style={{ height: "2px", background: "#150505", borderRadius: "1px", overflow: "hidden" }}>
-              <div style={{ height: "100%", background: "linear-gradient(90deg,#dc2626,#f87171)", width: `${syncState.progress ? Math.round((syncState.progress.taskIndex/syncState.progress.taskTotal)*100) : 0}%`, transition: "width 0.4s" }} />
-            </div>
-          </div>
-        )}
 
         <main
           style={{ maxWidth: "1100px", margin: "0 auto", padding: mainPad, animation: "fadeIn 0.3s ease" }}
