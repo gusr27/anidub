@@ -1504,13 +1504,336 @@ function MobileNav({ page, setPage }) {
   );
 }
 
+// ─── Admin ────────────────────────────────────────────────────────────────────
+const DUB_OPTIONS = ["dubbed","likely_dubbed","sub_only","unknown"];
+const DUB_OPTION_LABELS = { dubbed:"Dubbed", likely_dubbed:"Likely Dub", sub_only:"Sub Only", unknown:"Unknown" };
+
+function AdminLogin({ onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const doLogin = async () => {
+    if (!email || !password) return;
+    setLoading(true); setError(null);
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) { setError(err.message); setLoading(false); return; }
+    onLogin();
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Nunito',sans-serif", padding:"24px" }}>
+      <div style={{ width:"100%", maxWidth:"380px" }}>
+        <div style={{ textAlign:"center", marginBottom:"36px" }}>
+          <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:"32px", fontWeight:700, color:"#fff", letterSpacing:"0.12em", marginBottom:"6px" }}>ANIME<span style={{color:"#dc2626"}}>DUB</span></div>
+          <div style={{ fontSize:"13px", color:"#444", letterSpacing:"0.08em", textTransform:"uppercase", fontWeight:600 }}>Admin Panel</div>
+        </div>
+        <div style={{ background:"#0f0f0f", border:"1px solid rgba(255,255,255,0.07)", borderRadius:"12px", padding:"28px" }}>
+          <div style={{ marginBottom:"16px" }}>
+            <label style={{ display:"block", fontSize:"11px", color:"#555", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"6px" }}>Email</label>
+            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="staff@animedub.com"
+              onKeyDown={e=>e.key==="Enter"&&doLogin()}
+              style={{ width:"100%", background:"#080808", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"7px", padding:"11px 14px", color:"#fff", fontSize:"14px", outline:"none", fontFamily:"inherit" }}
+              onFocus={e=>e.target.style.borderColor="rgba(220,38,38,0.6)"}
+              onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.1)"}
+            />
+          </div>
+          <div style={{ marginBottom:"22px" }}>
+            <label style={{ display:"block", fontSize:"11px", color:"#555", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"6px" }}>Password</label>
+            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="••••••••"
+              onKeyDown={e=>e.key==="Enter"&&doLogin()}
+              style={{ width:"100%", background:"#080808", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"7px", padding:"11px 14px", color:"#fff", fontSize:"14px", outline:"none", fontFamily:"inherit" }}
+              onFocus={e=>e.target.style.borderColor="rgba(220,38,38,0.6)"}
+              onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.1)"}
+            />
+          </div>
+          {error && <div style={{ background:"rgba(220,38,38,0.1)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"6px", padding:"10px 12px", fontSize:"12px", color:"#f87171", marginBottom:"16px" }}>{error}</div>}
+          <button onClick={doLogin} disabled={loading} style={{ width:"100%", background:"#dc2626", border:"none", borderRadius:"7px", padding:"12px", color:"#fff", fontSize:"14px", fontWeight:700, cursor:loading?"not-allowed":"pointer", fontFamily:"inherit", letterSpacing:"0.04em", opacity:loading?0.7:1, transition:"opacity 0.15s" }}>
+            {loading ? "Signing in…" : "Sign In"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StreamEditor({ links, onChange }) {
+  const [entries, setEntries] = useState(() => Object.entries(links || {}));
+  const update = (newEntries) => { setEntries(newEntries); onChange(Object.fromEntries(newEntries.filter(([k,v])=>k&&v))); };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+      {entries.map(([site, url], i) => (
+        <div key={i} style={{ display:"flex", gap:"6px", alignItems:"center" }}>
+          <input value={site} onChange={e=>{ const n=[...entries]; n[i]=[e.target.value,url]; update(n); }} placeholder="Site name"
+            style={{ width:"120px", background:"#111", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"5px", padding:"5px 8px", color:"#e0e0e0", fontSize:"12px", outline:"none", fontFamily:"inherit" }} />
+          <input value={url} onChange={e=>{ const n=[...entries]; n[i]=[site,e.target.value]; update(n); }} placeholder="https://..."
+            style={{ flex:1, background:"#111", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"5px", padding:"5px 8px", color:"#e0e0e0", fontSize:"12px", outline:"none", fontFamily:"inherit" }} />
+          <button onClick={()=>update(entries.filter((_,j)=>j!==i))} style={{ background:"rgba(220,38,38,0.15)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"5px", padding:"5px 8px", color:"#f87171", fontSize:"12px", cursor:"pointer" }}>×</button>
+        </div>
+      ))}
+      <button onClick={()=>update([...entries,["",""]])} style={{ alignSelf:"flex-start", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"5px", padding:"5px 10px", color:"#555", fontSize:"11px", cursor:"pointer", fontFamily:"inherit" }}>+ Add link</button>
+    </div>
+  );
+}
+
+function AdminRow({ anime, onSaved }) {
+  const [expanded, setExpanded] = useState(false);
+  const [dubStatus, setDubStatus] = useState(anime.dubStatus || "unknown");
+  const [streamLinks, setStreamLinks] = useState(() => {
+    const links = anime.externalLinks || [];
+    return links.filter(l=>l.type==="STREAMING"&&l.url).reduce((acc,l)=>({...acc,[l.site]:l.url}),{});
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+  const dubChanged = dubStatus !== (anime.dubStatus||"unknown");
+  const dirty = dubChanged || JSON.stringify(streamLinks) !== JSON.stringify(
+    (anime.externalLinks||[]).filter(l=>l.type==="STREAMING"&&l.url).reduce((acc,l)=>({...acc,[l.site]:l.url}),{})
+  );
+
+  const save = async () => {
+    setSaving(true); setError(null);
+    const newLinks = [
+      ...(anime.externalLinks||[]).filter(l=>l.type!=="STREAMING"),
+      ...Object.entries(streamLinks).filter(([s,u])=>s&&u).map(([site,url])=>({site,url,type:"STREAMING"})),
+    ];
+    const { error: err } = await supabase.from("anime").update({ dub_status: dubStatus, external_links: newLinks, updated_at: new Date().toISOString() }).eq("id", anime.id);
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setSaved(true); setTimeout(()=>setSaved(false), 2000);
+    onSaved({ ...anime, dubStatus, externalLinks: newLinks });
+  };
+
+  const dubColors = { dubbed:"#4ade80", likely_dubbed:"#facc15", sub_only:"#a5b4fc", unknown:"#6b7280" };
+  const img = anime.coverImage?.medium || anime.coverImage?.large;
+
+  return (
+    <div style={{ background:"#0f0f0f", border:`1px solid ${expanded?"rgba(220,38,38,0.2)":"rgba(255,255,255,0.06)"}`, borderRadius:"10px", overflow:"hidden", transition:"border-color 0.15s" }}>
+      {/* Row */}
+      <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"10px 14px", cursor:"pointer" }} onClick={()=>setExpanded(e=>!e)}>
+        {img && <img src={img} alt="" style={{ width:"36px", height:"52px", objectFit:"cover", borderRadius:"4px", flexShrink:0 }} />}
+        {!img && <div style={{ width:"36px", height:"52px", background:"#1a1a1a", borderRadius:"4px", flexShrink:0 }} />}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:"14px", fontWeight:700, color:"#e0e0e0", fontFamily:"'Rajdhani',sans-serif", letterSpacing:"0.02em", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {anime.title?.english || anime.title?.romaji || "Unknown"}
+          </div>
+          <div style={{ fontSize:"11px", color:"#444", marginTop:"2px", display:"flex", gap:"8px", flexWrap:"wrap" }}>
+            {anime.title?.romaji && anime.title?.english && <span>{anime.title.romaji}</span>}
+            <span>{anime.format || "?"}</span>
+            <span>{anime.status}</span>
+            {anime.seasonYear && <span>{anime.seasonYear}</span>}
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px", flexShrink:0 }}>
+          <span style={{ fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"4px", background:dubColors[dubStatus]+"22", color:dubColors[dubStatus], border:`1px solid ${dubColors[dubStatus]}44` }}>
+            {DUB_OPTION_LABELS[dubStatus]}
+          </span>
+          {dirty && <span style={{ fontSize:"10px", color:"#f87171", fontWeight:700 }}>●</span>}
+          <span style={{ color:"#333", fontSize:"14px", transform:expanded?"rotate(180deg)":"rotate(0)", transition:"transform 0.2s" }}>▾</span>
+        </div>
+      </div>
+
+      {/* Expanded editor */}
+      {expanded && (
+        <div style={{ padding:"14px 16px 16px", borderTop:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:"column", gap:"16px" }}>
+          {/* Dub status */}
+          <div>
+            <label style={{ display:"block", fontSize:"11px", color:"#555", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"8px" }}>Dub Status</label>
+            <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+              {DUB_OPTIONS.map(opt=>(
+                <button key={opt} onClick={()=>setDubStatus(opt)} style={{
+                  background: dubStatus===opt ? dubColors[opt]+"22" : "transparent",
+                  border: `1px solid ${dubStatus===opt ? dubColors[opt]+"88" : "rgba(255,255,255,0.08)"}`,
+                  color: dubStatus===opt ? dubColors[opt] : "#555",
+                  borderRadius:"6px", padding:"5px 12px", fontSize:"12px", fontWeight:600,
+                  cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+                }}>{DUB_OPTION_LABELS[opt]}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stream links */}
+          <div>
+            <label style={{ display:"block", fontSize:"11px", color:"#555", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"8px" }}>Streaming Links</label>
+            <StreamEditor links={streamLinks} onChange={setStreamLinks} />
+          </div>
+
+          {/* Save */}
+          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+            <button onClick={save} disabled={saving||!dirty} style={{
+              background: dirty ? "#dc2626" : "rgba(255,255,255,0.04)",
+              border:"none", borderRadius:"7px", padding:"9px 20px",
+              color: dirty ? "#fff" : "#333", fontSize:"13px", fontWeight:700,
+              cursor: dirty&&!saving ? "pointer" : "not-allowed",
+              fontFamily:"inherit", transition:"all 0.15s", opacity:saving?0.7:1,
+            }}>{saving ? "Saving…" : saved ? "✓ Saved" : "Save Changes"}</button>
+            {error && <span style={{ fontSize:"12px", color:"#f87171" }}>{error}</span>}
+            {saved && <span style={{ fontSize:"12px", color:"#4ade80" }}>Changes saved to Supabase</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminPage({ onLogout }) {
+  const [allAnime, setAllAnime] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PER_PAGE = 50;
+
+  useEffect(() => {
+    setLoading(true);
+    sbAnime.getAll().then(items => {
+      const sorted = items.sort((a,b)=>(a.title?.english||a.title?.romaji||"").localeCompare(b.title?.english||b.title?.romaji||""));
+      setAllAnime(sorted);
+      setFiltered(sorted);
+      setTotalCount(sorted.length);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const q = search.toLowerCase();
+    let results = allAnime;
+    if (q) results = results.filter(a=>(a.title?.english||"").toLowerCase().includes(q)||(a.title?.romaji||"").toLowerCase().includes(q));
+    if (statusFilter !== "all") results = results.filter(a=>a.dubStatus===statusFilter);
+    setFiltered(results);
+    setPage(1);
+  }, [search, statusFilter, allAnime]);
+
+  const paged = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
+  const totalPages = Math.ceil(filtered.length/PER_PAGE);
+  const dubColors = { dubbed:"#4ade80", likely_dubbed:"#facc15", sub_only:"#a5b4fc", unknown:"#6b7280" };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#080808", fontFamily:"'Nunito',sans-serif", color:"#e0e0e0" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap'); *{box-sizing:border-box;margin:0;padding:0;} body{background:#080808;} ::-webkit-scrollbar{width:5px;} ::-webkit-scrollbar-track{background:#080808;} ::-webkit-scrollbar-thumb{background:#1f0505;border-radius:3px;} @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      {/* Header */}
+      <header style={{ background:"rgba(8,8,8,0.97)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(220,38,38,0.15)", position:"sticky", top:0, zIndex:100, padding:"0 24px" }}>
+        <div style={{ maxWidth:"1200px", margin:"0 auto", height:"56px", display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"9px", flexShrink:0 }}>
+            <div style={{ width:"28px", height:"28px", background:"#dc2626", borderRadius:"6px", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, color:"#fff", fontFamily:"'Rajdhani',sans-serif", fontSize:"15px" }}>A</div>
+            <span style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:"19px", fontWeight:700, color:"#fff", letterSpacing:"0.08em" }}>ANIME<span style={{color:"#dc2626"}}>DUB</span></span>
+          </div>
+          <div style={{ background:"rgba(220,38,38,0.12)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:"5px", padding:"3px 10px", fontSize:"11px", color:"#f87171", fontWeight:700, letterSpacing:"0.08em" }}>ADMIN</div>
+          <div style={{ flex:1 }} />
+          <span style={{ fontSize:"12px", color:"#333", fontFamily:"monospace" }}>{totalCount.toLocaleString()} titles</span>
+          <button onClick={onLogout} style={{ background:"transparent", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"6px", padding:"5px 12px", color:"#555", fontSize:"12px", cursor:"pointer", fontFamily:"inherit" }}>Sign out</button>
+        </div>
+      </header>
+      <div style={{ height:"2px", background:"linear-gradient(90deg,#dc2626,#7f1d1d 40%,transparent)" }} />
+
+      <main style={{ maxWidth:"1200px", margin:"0 auto", padding:"28px 24px 80px", animation:"fadeIn 0.3s ease" }}>
+        {/* Controls */}
+        <div style={{ display:"flex", gap:"10px", marginBottom:"20px", flexWrap:"wrap", alignItems:"center" }}>
+          {/* Search */}
+          <div style={{ flex:1, minWidth:"220px", display:"flex", alignItems:"center", gap:"8px", background:"#0f0f0f", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"8px", padding:"9px 14px" }}>
+            <span style={{ color:"#444", fontSize:"15px" }}>⌕</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by title…"
+              style={{ flex:1, background:"transparent", border:"none", outline:"none", color:"#fff", fontSize:"14px", fontFamily:"inherit" }} />
+            {search && <button onClick={()=>setSearch("")} style={{ background:"none", border:"none", color:"#444", cursor:"pointer", fontSize:"16px" }}>×</button>}
+          </div>
+          {/* Dub filter */}
+          <div style={{ display:"flex", gap:"5px", flexWrap:"wrap" }}>
+            {["all",...DUB_OPTIONS].map(opt=>(
+              <button key={opt} onClick={()=>setStatusFilter(opt)} style={{
+                background: statusFilter===opt ? (opt==="all"?"rgba(220,38,38,0.15)":dubColors[opt]+"22") : "transparent",
+                border: `1px solid ${statusFilter===opt ? (opt==="all"?"rgba(220,38,38,0.4)":dubColors[opt]+"66") : "rgba(255,255,255,0.07)"}`,
+                color: statusFilter===opt ? (opt==="all"?"#f87171":dubColors[opt]) : "#444",
+                borderRadius:"6px", padding:"5px 11px", fontSize:"11px", fontWeight:600,
+                cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+              }}>{opt==="all"?"All":DUB_OPTION_LABELS[opt]}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Results count */}
+        <div style={{ fontSize:"12px", color:"#333", fontFamily:"monospace", marginBottom:"14px" }}>
+          {filtered.length.toLocaleString()} results{search ? ` for "${search}"` : ""}{statusFilter!=="all" ? ` · ${DUB_OPTION_LABELS[statusFilter]}` : ""}
+          {totalPages > 1 && ` · page ${page}/${totalPages}`}
+        </div>
+
+        {/* List */}
+        {loading ? (
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            {Array.from({length:10}).map((_,i)=>(
+              <div key={i} style={{ height:"72px", borderRadius:"10px", background:"linear-gradient(90deg,#111 25%,#1a1a1a 50%,#111 75%)", backgroundSize:"200% 100%", animation:"shimmer 1.5s infinite" }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+            {paged.map(anime=>(
+              <AdminRow key={anime.id} anime={anime} onSaved={updated=>{
+                setAllAnime(prev=>prev.map(a=>a.id===updated.id?updated:a));
+              }} />
+            ))}
+            {paged.length === 0 && (
+              <div style={{ textAlign:"center", padding:"60px 0", color:"#333" }}>No anime match this filter</div>
+            )}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display:"flex", gap:"8px", justifyContent:"center", alignItems:"center", marginTop:"32px" }}>
+            <button onClick={()=>setPage(1)} disabled={page===1} style={{ ...btnStyle, padding:"8px 12px", opacity:page===1?0.35:1 }}>«</button>
+            <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} style={{ ...btnStyle, padding:"8px 14px", opacity:page===1?0.35:1 }}>‹</button>
+            <span style={{ color:"#444", fontSize:"13px", fontFamily:"monospace", padding:"0 10px" }}>{page} / {totalPages}</span>
+            <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages} style={{ ...btnStyle, padding:"8px 14px", opacity:page===totalPages?0.35:1 }}>›</button>
+            <button onClick={()=>setPage(totalPages)} disabled={page===totalPages} style={{ ...btnStyle, padding:"8px 12px", opacity:page===totalPages?0.35:1 }}>»</button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
 export default function App() {
+  // Detect /admin route
+  const isAdminRoute = window.location.pathname === "/admin";
   const [page, setPage] = useState("airing");
   const [syncState, setSyncState] = useState({ syncing: false, progress: null, lastSync: null, totalCount: 0, error: null });
   const [firstRun, setFirstRun] = useState(false);
   const syncingRef = useRef(false);
   const { isMobile, isTablet } = useBreakpoint();
+
+  // ── Admin auth ──────────────────────────────────────────────────────────────
+  const [authSession, setAuthSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(isAdminRoute);
+
+  useEffect(() => {
+    if (!isAdminRoute) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthSession(session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Render admin route
+  if (isAdminRoute) {
+    if (authLoading) return (
+      <div style={{ minHeight:"100vh", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:"24px", color:"#dc2626", letterSpacing:"0.1em" }}>Loading…</div>
+      </div>
+    );
+    if (!authSession) return <AdminLogin onLogin={async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setAuthSession(session);
+    }} />;
+    return <AdminPage onLogout={async () => { await supabase.auth.signOut(); setAuthSession(null); }} />;
+  }
 
   const startSync = useCallback(async () => {
     if (syncingRef.current) return;
