@@ -745,23 +745,57 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
       }
 
       // 3. Last resort — live AniList search to get canonical ID, then fetch from Supabase
+      // If the show isn't in Supabase yet, fetch full data from AniList and upsert it
       try {
-        const query = `
+        const searchQuery = `
           query ($search: String) {
-            Page(page: 1, perPage: 3) {
+            Page(page: 1, perPage: 5) {
               media(type: ANIME, search: $search, sort: SEARCH_MATCH) {
                 id
-                title { english romaji }
+                title { english romaji native }
+                status season seasonYear episodes averageScore popularity
+                coverImage { large medium color } bannerImage genres format
+                countryOfOrigin startDate { year month day }
+                nextAiringEpisode { episode airingAt }
+                studios(isMain: true) { nodes { name } }
+                externalLinks { site url type language }
+                streamingEpisodes { title thumbnail url site }
+                synonyms description(asHtml: false)
               }
             }
           }`;
-        const data = await anilistFetch(query, { search: romaji || english });
+        const searchTerm = romaji || english;
+        const data = await anilistFetch(searchQuery, { search: searchTerm });
         const candidates = data?.Page?.media || [];
+
         for (const c of candidates) {
-          const row = await sbAnime.getById(c.id);
+          // Check Supabase first
+          let row = await sbAnime.getById(c.id);
           if (row) return row;
+
+          // Not in DB — check title similarity before inserting
+          const cEn = (c.title?.english || "").toLowerCase();
+          const cRo = (c.title?.romaji  || "").toLowerCase();
+          const target = searchTerm.toLowerCase();
+          const isSimilar = cEn.includes(target) || cRo.includes(target) ||
+                            target.includes(cEn)  || target.includes(cRo) ||
+                            (c.synonyms || []).some(s => s.toLowerCase().includes(target) || target.includes(s.toLowerCase()));
+
+          if (isSimilar) {
+            // Upsert into Supabase so future lookups are instant
+            const enriched = { ...c, dubStatus: detectDubStatus(c), score: c.averageScore || 0 };
+            await sbAnime.upsertBatch([enriched]).catch(() => {});
+            return normaliseRow({
+              ...enriched,
+              cover_image: c.coverImage, banner_image: c.bannerImage,
+              country_of_origin: c.countryOfOrigin, start_date: c.startDate,
+              next_airing_episode: c.nextAiringEpisode, external_links: c.externalLinks,
+              streaming_episodes: c.streamingEpisodes, season_year: c.seasonYear,
+              dub_status: enriched.dubStatus,
+            });
+          }
         }
-      } catch { /* AniList unavailable — swallow */ }
+      } catch { /* AniList unavailable */ }
 
       return null;
     };
