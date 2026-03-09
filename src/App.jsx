@@ -152,7 +152,6 @@ const sbAnime = {
 
   search: async (term) => {
     const q = term.toLowerCase();
-    // Supabase full-text or ilike on title jsonb — use ilike on cast
     const { data, error } = await supabase
       .from("anime")
       .select("*")
@@ -161,6 +160,29 @@ const sbAnime = {
       .limit(48);
     if (error) throw error;
     return (data || []).map(normaliseRow);
+  },
+
+  // Search synonyms array — Supabase text[] supports @> with ilike via unnest,
+  // but simplest cross-compatible approach is cs (contains) with the exact term
+  searchSynonyms: async (term) => {
+    const { data, error } = await supabase
+      .from("anime")
+      .select("*")
+      .contains("synonyms", [term])
+      .limit(5);
+    if (error) return [];
+    return (data || []).map(normaliseRow);
+  },
+
+  // Look up by AniList ID directly — most reliable match
+  getById: async (id) => {
+    const { data, error } = await supabase
+      .from("anime")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return null;
+    return normaliseRow(data);
   },
 
   count: async () => {
@@ -680,42 +702,77 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  // Fetch enriched data from Supabase — try multiple strategies in order
+  // ── Multi-strategy Supabase lookup ──────────────────────────────────────
+  // Strategy order:
+  // 1. Supabase title search (english + romaji ilike)
+  // 2. Supabase synonyms exact match
+  // 3. AniList live search → get canonical ID → Supabase getById
   useEffect(() => {
-    const english = show.english || "";
-    const romaji  = show.romaji  || title || "";
-    if (!english && !romaji) return;
+    const english = (show.english || "").trim();
+    const romaji  = (show.romaji  || title || "").trim();
+    if (!english && !romaji) { setDbData(undefined); return; }
 
-    const trySearch = async (term) => {
+    // Strip trailing season/part/number suffixes to widen the search
+    const strip = (s) => s.replace(/\s+(season\s*\d+|part\s*\d+|cour\s*\d+|s\d+|\d+st|\d+nd|\d+rd|\d+th)$/i, "").trim();
+
+    const supabaseSearch = async (term) => {
       if (!term) return null;
-      // Strip trailing season/part suffixes for a broader match
-      const clean = term.replace(/\s+(season\s*\d+|part\s*\d+|s\d+|\d+st|\d+nd|\d+rd|\d+th)$/i, "").trim();
-      const results = await sbAnime.search(clean);
-      return results.length > 0 ? results[0] : null;
+      const results = await sbAnime.search(strip(term));
+      return results[0] || null;
     };
 
-    const findBestMatch = async () => {
-      // 1. Try exact English title
-      let match = await trySearch(english);
-      if (match) return match;
-      // 2. Try romaji
-      match = await trySearch(romaji);
-      if (match) return match;
-      // 3. Try first word(s) of English if it's a long title
-      if (english.split(" ").length > 2) {
-        match = await trySearch(english.split(" ").slice(0, 3).join(" "));
-        if (match) return match;
+    const findMatch = async () => {
+      // 1a. English title
+      let m = await supabaseSearch(english);
+      if (m) return m;
+
+      // 1b. Romaji title
+      m = await supabaseSearch(romaji);
+      if (m) return m;
+
+      // 1c. First 3 words of english (catches "Sword Art Online: Alicization" → "Sword Art Online")
+      if (english.split(" ").length > 3) {
+        m = await supabaseSearch(english.split(" ").slice(0, 3).join(" "));
+        if (m) return m;
       }
+
+      // 2. Synonyms exact match — AnimeSchedule romaji is often an AniList synonym
+      const synResults = await sbAnime.searchSynonyms(romaji);
+      if (synResults.length > 0) return synResults[0];
+      if (english) {
+        const synEn = await sbAnime.searchSynonyms(english);
+        if (synEn.length > 0) return synEn[0];
+      }
+
+      // 3. Last resort — live AniList search to get canonical ID, then fetch from Supabase
+      try {
+        const query = `
+          query ($search: String) {
+            Page(page: 1, perPage: 3) {
+              media(type: ANIME, search: $search, sort: SEARCH_MATCH) {
+                id
+                title { english romaji }
+              }
+            }
+          }`;
+        const data = await anilistFetch(query, { search: romaji || english });
+        const candidates = data?.Page?.media || [];
+        for (const c of candidates) {
+          const row = await sbAnime.getById(c.id);
+          if (row) return row;
+        }
+      } catch { /* AniList unavailable — swallow */ }
+
       return null;
     };
 
-    findBestMatch().then(match => {
+    findMatch().then(match => {
       if (match) {
-        console.log(`[Modal] matched "${match.title?.english || match.title?.romaji}" for "${english || romaji}"`);
+        console.log(`[Modal] ✓ matched "${match.title?.english || match.title?.romaji}" for "${english || romaji}"`);
         setDbData(match);
       } else {
-        console.warn(`[Modal] no DB match for "${english || romaji}"`);
-        setDbData(undefined); // undefined = done loading, no match (vs null = still loading)
+        console.warn(`[Modal] ✗ no match for "${english || romaji}"`);
+        setDbData(undefined);
       }
     }).catch(() => setDbData(undefined));
   }, [show, title]);
