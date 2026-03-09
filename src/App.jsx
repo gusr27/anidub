@@ -680,24 +680,56 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  // Fetch enriched data from Supabase by title match
+  // Fetch enriched data from Supabase — try multiple strategies in order
   useEffect(() => {
-    const q = show.english || show.romaji || title || "";
-    if (!q) return;
-    sbAnime.search(q).then(results => {
-      if (results.length > 0) setDbData(results[0]);
-    }).catch(() => {});
+    const english = show.english || "";
+    const romaji  = show.romaji  || title || "";
+    if (!english && !romaji) return;
+
+    const trySearch = async (term) => {
+      if (!term) return null;
+      // Strip trailing season/part suffixes for a broader match
+      const clean = term.replace(/\s+(season\s*\d+|part\s*\d+|s\d+|\d+st|\d+nd|\d+rd|\d+th)$/i, "").trim();
+      const results = await sbAnime.search(clean);
+      return results.length > 0 ? results[0] : null;
+    };
+
+    const findBestMatch = async () => {
+      // 1. Try exact English title
+      let match = await trySearch(english);
+      if (match) return match;
+      // 2. Try romaji
+      match = await trySearch(romaji);
+      if (match) return match;
+      // 3. Try first word(s) of English if it's a long title
+      if (english.split(" ").length > 2) {
+        match = await trySearch(english.split(" ").slice(0, 3).join(" "));
+        if (match) return match;
+      }
+      return null;
+    };
+
+    findBestMatch().then(match => {
+      if (match) {
+        console.log(`[Modal] matched "${match.title?.english || match.title?.romaji}" for "${english || romaji}"`);
+        setDbData(match);
+      } else {
+        console.warn(`[Modal] no DB match for "${english || romaji}"`);
+        setDbData(undefined); // undefined = done loading, no match (vs null = still loading)
+      }
+    }).catch(() => setDbData(undefined));
   }, [show, title]);
 
   // ── Derived display values ───────────────────────────────────────────────
-  const displayTitle = dbData?.title?.english || show.english || title;
-  const displayRomaji = dbData?.title?.romaji || show.romaji || "";
-  const studio = dbData?.studios?.nodes?.[0]?.name || null;
-  const score = dbData?.score ?? dbData?.averageScore ?? null;
-  const description = dbData?.description
+  const displayTitle  = dbData?.title?.english || show.english || title;
+  const displayRomaji = dbData?.title?.romaji  || show.romaji  || "";
+  const studio        = dbData?.studios?.nodes?.[0]?.name || null;
+  const score         = dbData?.score ?? dbData?.averageScore ?? null;
+  const description   = dbData?.description
     ? dbData.description.replace(/<[^>]+>/g, "").replace(/\n+/g, " ").trim()
     : null;
-  const genres = dbData?.genres || [];
+  const genres        = dbData?.genres || [];
+  const isLoadingDb   = dbData === null; // null = still in flight, undefined = done/no match
 
   // episodeDate from AnimeSchedule = the air date of this week's dub episode.
   const schedDate = show.episodeDate ? new Date(show.episodeDate) : null;
@@ -870,7 +902,8 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
                 {description.length > 320 ? description.slice(0, 320).trimEnd() + "…" : description}
               </p>
             </div>
-          ) : dbData === null ? (
+          ) : isLoadingDb ? (
+            // Still loading
             <div style={{ marginBottom: "18px", display: "flex", gap: "5px", justifyContent: "center" }}>
               {[0,1,2].map(i => <div key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#2a2a2a", animation: `pulse 1s ${i*0.2}s infinite` }} />)}
             </div>
