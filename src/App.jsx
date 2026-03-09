@@ -1088,8 +1088,8 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             boxShadow: isAiringNow ? "0 0 12px rgba(220,38,38,0.15)" : isNewDub ? "0 0 10px rgba(250,204,21,0.08)" : "none",
           }}
         >
-          {/* Poster thumbnail */}
-          <div style={{ flexShrink: 0, width: "56px", height: "80px", position: "relative" }}>
+          {/* Poster thumbnail — 28vw wide, 2:3 ratio, min 90px max 140px */}
+          <div style={{ flexShrink: 0, width: "clamp(90px, 28vw, 140px)", aspectRatio: "2/3" }}>
             {img ? (
               <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             ) : (
@@ -1573,7 +1573,8 @@ function AiringPage({ isMobile = false }) {
 
                       {/* Show cards for this time slot */}
                       <div style={{
-                        display: "flex", flexDirection: "column",
+                        display: isMobile ? "flex" : "flex",
+                        flexDirection: "column",
                         gap: isMobile ? "6px" : "6px",
                       }}>
                         {shows.map((show, i) => {
