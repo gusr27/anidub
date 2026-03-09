@@ -672,14 +672,56 @@ function SyncBanner({ syncState, onManualSync }) {
 
 // ─── Show Modal (mobile) ─────────────────────────────────────────────────────
 function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClose }) {
+  const [dbData, setDbData] = useState(null);
+
   // Lock body scroll while open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const airTime = show.episodeDate ? new Date(show.episodeDate).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : null;
-  const airDate = show.episodeDate ? new Date(show.episodeDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : null;
+  // Fetch enriched data from Supabase by title match
+  useEffect(() => {
+    const q = show.english || show.romaji || title || "";
+    if (!q) return;
+    sbAnime.search(q).then(results => {
+      if (results.length > 0) setDbData(results[0]);
+    }).catch(() => {});
+  }, [show, title]);
+
+  // ── Derived display values ───────────────────────────────────────────────
+  const displayTitle = dbData?.title?.english || show.english || title;
+  const displayRomaji = dbData?.title?.romaji || show.romaji || "";
+  const studio = dbData?.studios?.nodes?.[0]?.name || null;
+  const score = dbData?.score ?? dbData?.averageScore ?? null;
+  const description = dbData?.description
+    ? dbData.description.replace(/<[^>]+>/g, "").replace(/\n+/g, " ").trim()
+    : null;
+  const genres = dbData?.genres || [];
+
+  // Last aired — use episodeDate from AnimeSchedule
+  const lastAiredDate = show.episodeDate ? new Date(show.episodeDate) : null;
+  const isToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
+  const lastAiredLabel = lastAiredDate
+    ? isToday
+      ? "Today"
+      : lastAiredDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  // Next episode from DB
+  const nextEp = dbData?.nextAiringEpisode;
+  const nextEpLabel = nextEp?.airingAt
+    ? new Date(nextEp.airingAt * 1000).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+    : null;
+  const nextEpNum = nextEp?.episode || null;
+
+  const infoBoxStyle = {
+    background: "#0d0d0d", borderRadius: "10px",
+    padding: "12px 14px", display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center", gap: "4px", textAlign: "center",
+  };
+  const infoLabelStyle = { fontSize: "9px", color: "#444", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase" };
+  const infoValueStyle = { fontSize: "13px", color: "#e0e0e0", fontWeight: 700, lineHeight: 1.2 };
 
   return (
     <div
@@ -699,28 +741,25 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
           borderRadius: "20px 20px 0 0",
           overflow: "hidden",
           animation: "slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1)",
-          maxHeight: "90vh",
+          maxHeight: "92vh",
           display: "flex", flexDirection: "column",
         }}
       >
-        {/* ── Poster header ── */}
+        {/* ── Poster header (fixed, not scrollable) ── */}
         <div style={{ position: "relative", flexShrink: 0 }}>
           {img ? (
-            <img src={img} alt={title} style={{ width: "100%", height: "220px", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            <img src={img} alt={title} style={{ width: "100%", height: "200px", objectFit: "cover", objectPosition: "top", display: "block" }} />
           ) : (
-            <div style={{ width: "100%", height: "200px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px", color: "#2a2a2a" }}>◈</div>
+            <div style={{ width: "100%", height: "180px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px", color: "#2a2a2a" }}>◈</div>
           )}
-          {/* Gradient over poster */}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(17,17,17,1) 100%)" }} />
-          {/* Close pill */}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(17,17,17,1) 100%)" }} />
           <button onClick={onClose} style={{
             position: "absolute", top: "12px", right: "12px",
-            background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "20px",
+            background: "rgba(0,0,0,0.55)", border: "none", borderRadius: "50%",
             color: "#fff", fontSize: "18px", width: "32px", height: "32px",
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             backdropFilter: "blur(4px)",
           }}>×</button>
-          {/* LIVE badge */}
           {isAiringNow && (
             <div style={{
               position: "absolute", top: "12px", left: "12px",
@@ -736,37 +775,89 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, onClos
         </div>
 
         {/* ── Scrollable body ── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 12px" }}>
-          {/* Title */}
-          <div style={{ marginBottom: "16px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 16px", WebkitOverflowScrolling: "touch" }}>
+
+          {/* Title + studio */}
+          <div style={{ textAlign: "center", marginBottom: "18px" }}>
             <h2 style={{
               fontFamily: "'Rajdhani', sans-serif", fontSize: "22px", fontWeight: 700,
               color: "#fff", letterSpacing: "0.03em", lineHeight: 1.2, marginBottom: "4px",
-            }}>{show.english || title}</h2>
-            {show.romaji && show.english && show.romaji !== show.english && (
-              <div style={{ fontSize: "12px", color: "#555" }}>{show.romaji}</div>
+            }}>{displayTitle}</h2>
+            {displayRomaji && displayRomaji !== displayTitle && (
+              <div style={{ fontSize: "11px", color: "#555", marginBottom: "6px" }}>{displayRomaji}</div>
+            )}
+            {studio && (
+              <div style={{ fontSize: "12px", color: "#666", fontStyle: "italic" }}>{studio}</div>
             )}
           </div>
 
-          {/* Details grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
-            {[
-              epNum   ? ["Episode",  `#${epNum}`]                    : null,
-              airTime ? ["Airs at",  airTime]                        : null,
-              airDate ? ["Date",     airDate]                        : null,
-              show.airingStatus ? ["Status", show.airingStatus]      : null,
-              show.episodes     ? ["Episodes", String(show.episodes)] : null,
-              show.airType      ? ["Type", show.airType]              : null,
-            ].filter(Boolean).map(([label, value]) => (
-              <div key={label} style={{ background: "#0f0f0f", borderRadius: "8px", padding: "10px 12px" }}>
-                <div style={{ fontSize: "10px", color: "#444", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "3px" }}>{label}</div>
-                <div style={{ fontSize: "13px", color: "#e0e0e0", fontWeight: 600 }}>{value}</div>
-              </div>
-            ))}
+          {/* Three info boxes */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "18px" }}>
+            {/* Score */}
+            <div style={infoBoxStyle}>
+              <span style={infoLabelStyle}>Score</span>
+              <span style={{ ...infoValueStyle, color: score ? "#facc15" : "#333", fontSize: "16px" }}>
+                {score ? `${score}` : "—"}
+              </span>
+              {score && <span style={{ fontSize: "9px", color: "#444" }}> / 100</span>}
+            </div>
+
+            {/* Last aired */}
+            <div style={infoBoxStyle}>
+              <span style={infoLabelStyle}>Last Ep</span>
+              <span style={{ ...infoValueStyle, color: isToday ? "#4ade80" : "#e0e0e0", fontSize: lastAiredLabel && lastAiredLabel.length > 8 ? "11px" : "13px" }}>
+                {lastAiredLabel || "—"}
+              </span>
+              {epNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {epNum}</span>}
+            </div>
+
+            {/* Next episode */}
+            <div style={infoBoxStyle}>
+              <span style={infoLabelStyle}>Next Ep</span>
+              {nextEpLabel ? (
+                <>
+                  <span style={{ ...infoValueStyle, fontSize: "11px" }}>{nextEpLabel}</span>
+                  {nextEpNum && <span style={{ fontSize: "9px", color: "#555" }}>Ep {nextEpNum}</span>}
+                </>
+              ) : (
+                <span style={{ ...infoValueStyle, color: "#333" }}>TBA</span>
+              )}
+            </div>
           </div>
+
+          {/* Description */}
+          {description ? (
+            <div style={{ marginBottom: "18px" }}>
+              <div style={{ fontSize: "10px", color: "#444", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: "8px" }}>Synopsis</div>
+              <p style={{ fontSize: "13px", color: "#888", lineHeight: 1.65 }}>
+                {description.length > 320 ? description.slice(0, 320).trimEnd() + "…" : description}
+              </p>
+            </div>
+          ) : dbData === null ? (
+            <div style={{ marginBottom: "18px", display: "flex", gap: "5px", justifyContent: "center" }}>
+              {[0,1,2].map(i => <div key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#2a2a2a", animation: `pulse 1s ${i*0.2}s infinite` }} />)}
+            </div>
+          ) : null}
+
+          {/* Genres */}
+          {genres.length > 0 && (
+            <div>
+              <div style={{ fontSize: "10px", color: "#444", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: "8px" }}>Genres</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {genres.map(g => (
+                  <span key={g} style={{
+                    fontSize: "11px", color: "#666",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: "20px", padding: "3px 10px",
+                  }}>{g}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Stream footer ── */}
+        {/* ── Stream footer (fixed, always visible) ── */}
         <div style={{
           flexShrink: 0,
           borderTop: "1px solid rgba(255,255,255,0.07)",
