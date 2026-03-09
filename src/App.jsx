@@ -1072,76 +1072,83 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
   const [hovered, setHovered] = useState(false);
   const accentColor = primaryColor && primaryColor !== "#555" ? primaryColor : null;
 
-  // ── Mobile poster card ───────────────────────────────────────────────────────
+  // ── Mobile card — poster left, info right ───────────────────────────────────
   if (isMobile) {
     return (
       <>
         <div
           onClick={() => setModalOpen(true)}
           style={{
-            position: "relative",
-            borderRadius: "10px",
-            overflow: "hidden",
+            display: "flex", alignItems: "center", gap: "10px",
             cursor: "pointer",
-            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.4)" : isNewDub ? "rgba(250,204,21,0.35)" : "rgba(255,255,255,0.07)"}`,
-            boxShadow: isAiringNow ? "0 0 16px rgba(220,38,38,0.2)" : isNewDub ? "0 0 14px rgba(250,204,21,0.12)" : "0 4px 16px rgba(0,0,0,0.5)",
-            userSelect: "none",
-            aspectRatio: "2/3",
-            background: "#111",
-            WebkitTapHighlightColor: "transparent",
+            background: isAiringNow ? "rgba(220,38,38,0.05)" : isNewDub ? "rgba(250,204,21,0.04)" : "#0f0f0f",
+            border: `1px solid ${isAiringNow ? "rgba(220,38,38,0.35)" : isNewDub ? "rgba(250,204,21,0.3)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: "10px", overflow: "hidden",
+            userSelect: "none", WebkitTapHighlightColor: "transparent",
+            boxShadow: isAiringNow ? "0 0 12px rgba(220,38,38,0.15)" : isNewDub ? "0 0 10px rgba(250,204,21,0.08)" : "none",
           }}
         >
-          {img ? (
-            <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", color: "#333" }}>◈</div>
-          )}
-
-          {/* Title gradient at top */}
-          <div style={{
-            position: "absolute", top: 0, left: 0, right: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, transparent 100%)",
-            padding: "10px 10px 20px",
-          }}>
-            <div style={{
-              fontSize: "12px", fontWeight: 700, color: "#fff",
-              fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.03em", lineHeight: 1.25,
-              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-            }}>{title}</div>
-            {epNum && <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", fontFamily: "monospace", marginTop: "2px" }}>Ep {epNum}</div>}
+          {/* Poster thumbnail */}
+          <div style={{ flexShrink: 0, width: "56px", height: "80px", position: "relative" }}>
+            {img ? (
+              <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: "100%", height: "100%", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", color: "#333" }}>◈</div>
+            )}
           </div>
 
-          {/* Badges — bottom left stack (above stream count) */}
-          <div style={{ position: "absolute", bottom: streamEntries.length > 0 ? 28 : 8, left: 8, display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
-            {isNewDub && (
-              <div style={{
-                background: "rgba(250,204,21,0.92)", color: "#000",
-                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-                borderRadius: "3px", letterSpacing: "0.07em",
-              }}>★ NEW DUB</div>
-            )}
-            {isAiringNow && (
-              <div style={{
-                background: "rgba(220,38,38,0.9)", color: "#fff",
-                fontSize: "8px", fontWeight: 800, padding: "2px 6px",
-                borderRadius: "3px", letterSpacing: "0.07em",
-                display: "flex", alignItems: "center", gap: "4px",
-              }}>
-                <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite", display: "inline-block" }} />
-                LIVE
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0, padding: "10px 10px 10px 0", display: "flex", flexDirection: "column", justifyContent: "center", gap: "4px" }}>
+            <div style={{
+              fontSize: "13px", fontWeight: 700, color: "#fff",
+              fontFamily: "'Rajdhani', sans-serif", letterSpacing: "0.02em", lineHeight: 1.25,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>{title}</div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+              {epNum && (
+                <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace", fontWeight: 600 }}>Ep {epNum}</span>
+              )}
+              {isNewDub && (
+                <span style={{
+                  fontSize: "8px", fontWeight: 800, padding: "1px 5px",
+                  background: "rgba(250,204,21,0.15)", color: "#facc15",
+                  border: "1px solid rgba(250,204,21,0.35)", borderRadius: "3px", letterSpacing: "0.06em",
+                }}>★ NEW DUB</span>
+              )}
+              {isAiringNow && (
+                <span style={{
+                  fontSize: "8px", fontWeight: 800, padding: "1px 5px",
+                  background: "rgba(220,38,38,0.2)", color: "#f87171",
+                  border: "1px solid rgba(220,38,38,0.4)", borderRadius: "3px", letterSpacing: "0.06em",
+                  display: "inline-flex", alignItems: "center", gap: "3px",
+                }}>
+                  <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#f87171", animation: "pulse 1s infinite", display: "inline-block" }} />
+                  LIVE
+                </span>
+              )}
+            </div>
+
+            {/* Stream pills */}
+            {streamEntries.length > 0 && (
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                {streamEntries.slice(0, 3).map(([site, url]) => {
+                  const color = getStreamColor(site);
+                  return (
+                    <a key={site} href={url} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()} style={{ textDecoration: "none" }}>
+                      <span style={{
+                        fontSize: "9px", fontWeight: 700, padding: "1px 6px",
+                        borderRadius: "3px", fontFamily: "monospace",
+                        background: color + "18", color, border: `1px solid ${color}44`,
+                        display: "inline-block",
+                      }}>{site}</span>
+                    </a>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {/* Stream count badge at bottom */}
-          {streamEntries.length > 0 && (
-            <div style={{
-              position: "absolute", bottom: 8, left: 8,
-              background: "rgba(0,0,0,0.7)", borderRadius: "4px",
-              padding: "2px 6px", fontSize: "9px", color: "#888",
-              fontFamily: "monospace", backdropFilter: "blur(4px)",
-            }}>▶ {streamEntries.length}</div>
-          )}
         </div>
 
         {modalOpen && (
@@ -1566,10 +1573,8 @@ function AiringPage({ isMobile = false }) {
 
                       {/* Show cards for this time slot */}
                       <div style={{
-                        display: isMobile ? "grid" : "flex",
-                        gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(110px, 1fr))" : undefined,
-                        flexDirection: isMobile ? undefined : "column",
-                        gap: isMobile ? "10px" : "6px",
+                        display: "flex", flexDirection: "column",
+                        gap: isMobile ? "6px" : "6px",
                       }}>
                         {shows.map((show, i) => {
                           const title = show.english || show.romaji || show.title || "Unknown";
