@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { motion, AnimatePresence, useAnimate, stagger } from "motion/react";
+import { motion, AnimatePresence, useAnimate, stagger, MotionConfig } from "motion/react";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
@@ -737,7 +737,7 @@ function SyncBanner({ syncState, onManualSync }) {
 }
 
 // ─── Show Modal (mobile) ─────────────────────────────────────────────────────
-function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewDub, onClose }) {
+function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewDub, cardId, onClose }) {
   const [dbData, setDbData] = useState(null);
 
   // Lock body scroll while open
@@ -920,26 +920,33 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
       style={{
         position: "fixed", inset: 0, zIndex: 500,
         background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
-        display: "flex", alignItems: "flex-end", justifyContent: "center",
+        display: "flex", alignItems: cardId ? "center" : "flex-end", justifyContent: "center",
       }}
     >
       <motion.div
+        layoutId={cardId ? `card-${cardId}` : undefined}
         onClick={e => e.stopPropagation()}
-        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-        transition={{ type: "spring", stiffness: 380, damping: 38 }}
+        initial={cardId ? undefined : { y: "100%" }}
+        animate={cardId ? undefined : { y: 0 }}
+        exit={cardId ? undefined : { y: "100%" }}
+        transition={{ type: "spring", stiffness: 340, damping: 36 }}
         style={{
           width: "100%", maxWidth: "480px",
           background: "#111",
-          borderRadius: "20px 20px 0 0",
+          borderRadius: cardId ? "16px" : "20px 20px 0 0",
           overflow: "hidden",
-          maxHeight: "92vh",
+          maxHeight: cardId ? "88vh" : "92vh",
           display: "flex", flexDirection: "column",
         }}
       >
         {/* ── Poster header (fixed, not scrollable) ── */}
         <div style={{ position: "relative", flexShrink: 0 }}>
           {img ? (
-            <img src={img} alt={title} style={{ width: "100%", height: "200px", objectFit: "cover", objectPosition: "top", display: "block" }} />
+            <motion.img
+              layoutId={cardId ? `poster-${cardId}` : undefined}
+              src={img} alt={title}
+              style={{ width: "100%", height: "200px", objectFit: "cover", objectPosition: "top", display: "block" }}
+            />
           ) : (
             <div style={{ width: "100%", height: "180px", background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px", color: "#2a2a2a" }}>◈</div>
           )}
@@ -1240,11 +1247,14 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
   // ── Desktop row card ─────────────────────────────────────────────────────────
   const hoverBg     = accentColor ? `${accentColor}18` : "rgba(255,255,255,0.04)";
   const hoverBorder = accentColor ? `${accentColor}66` : "rgba(255,255,255,0.15)";
+  const cardId      = show.route || show.title || title;
 
   const desktopCard = (
     <motion.div
+      layoutId={`card-${cardId}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => setModalOpen(true)}
       variants={{ hidden: { opacity: 0, y: 28 }, visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 22 } } }}
       whileHover={{ scale: 1.012 }}
       transition={{ type: "spring", stiffness: 350, damping: 30 }}
@@ -1254,7 +1264,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
         borderRadius: "9px", overflow: "hidden",
         display: "flex", alignItems: "stretch",
         minHeight: "100px",
-        cursor: primaryUrl ? "pointer" : "default",
+        cursor: "pointer",
         transition: "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
         boxShadow: hovered && accentColor ? `0 4px 24px ${accentColor}22` : isAiringNow ? "0 0 16px rgba(220,38,38,0.1)" : "none",
         userSelect: "none",
@@ -1262,10 +1272,10 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
     >
       {/* Cover image */}
       {img && (
-        <div style={{ width: "clamp(80px, 6vw, 110px)", aspectRatio: "2/3", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+        <motion.div layoutId={`poster-${cardId}`} style={{ width: "clamp(80px, 6vw, 110px)", aspectRatio: "2/3", flexShrink: 0, overflow: "hidden", position: "relative" }}>
           <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s ease", transform: hovered ? "scale(1.08)" : "scale(1)" }} />
           {hovered && accentColor && <div style={{ position: "absolute", inset: 0, background: `${accentColor}33` }} />}
-        </div>
+        </motion.div>
       )}
 
       {/* Info */}
@@ -1341,14 +1351,26 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
     </motion.div>
   );
 
-  if (primaryUrl) {
-    return (
-      <a href={primaryUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", display: "block" }}>
-        {desktopCard}
-      </a>
-    );
-  }
-  return desktopCard;
+  return (
+    <>
+      {desktopCard}
+      <AnimatePresence>
+        {modalOpen && (
+          <ShowModal
+            show={show}
+            title={title}
+            epNum={epNum}
+            img={img}
+            streamEntries={streamEntries}
+            isAiringNow={isAiringNow}
+            isNewDub={isNewDub}
+            cardId={cardId}
+            onClose={() => setModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  );
 }
 
 // ─── Pages ────────────────────────────────────────────────────────────────────
@@ -2501,6 +2523,7 @@ export default function App() {
   const gridMinCard = isMobile ? "130px" : isTablet ? "145px" : "160px";
 
   return (
+    <MotionConfig transition={{ layout: { type: "spring", stiffness: 340, damping: 36 } }}>
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap');
@@ -2596,5 +2619,6 @@ export default function App() {
         {isMobile && <MobileNav page={page} setPage={setPage} />}
       </div>
     </>
+    </MotionConfig>
   );
 }
