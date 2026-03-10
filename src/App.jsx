@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useAnimate, stagger } from "motion/react";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
@@ -1097,7 +1097,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
       <>
         <motion.div
           onClick={() => setModalOpen(true)}
-          variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+          variants={{ hidden: { opacity: 0, y: 28 }, visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 22 } } }}
           whileTap={{ scale: 0.97 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
           style={{
@@ -1209,7 +1209,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
     <motion.div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      variants={{ hidden: { opacity: 0, y: 28 }, visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 22 } } }}
       whileHover={{ scale: 1.012 }}
       transition={{ type: "spring", stiffness: 350, damping: 30 }}
       style={{
@@ -1604,13 +1604,26 @@ function AiringPage({ isMobile = false }) {
             });
 
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+              <AnimatePresence mode="wait">
+              <motion.div
+                key={activeDay}
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.055, delayChildren: 0.05 } } }}
+                style={{ display: "flex", flexDirection: "column", gap: "28px" }}
+              >
                 {Object.entries(byTime).map(([timeStr, shows]) => {
                   const firstDate = new Date(shows[0].episodeDate || shows[0].EpisodeDate);
                   const isAiringNow = !isNaN(firstDate) && Math.abs(Date.now() - firstDate.getTime()) < 60 * 60 * 1000;
 
                   return (
-                    <div key={timeStr}>
+                    <motion.div
+                      key={timeStr}
+                      variants={{
+                        hidden: { opacity: 0, y: 40 },
+                        visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 280, damping: 24 } },
+                      }}
+                    >
                       {/* Time header */}
                       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1630,10 +1643,8 @@ function AiringPage({ isMobile = false }) {
 
                       {/* Show cards for this time slot */}
                       <motion.div
-                        initial="hidden" animate="visible"
-                        variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
                         style={{
-                          display: isMobile ? "flex" : "flex",
+                          display: "flex",
                           flexDirection: "column",
                           gap: isMobile ? "6px" : "6px",
                         }}
@@ -1671,14 +1682,15 @@ function AiringPage({ isMobile = false }) {
                           );
                         })}
                       </motion.div>
-                    </div>
+                    </motion.div>
                   );
                 })}
 
                 <div style={{ fontSize: "11px", color: "#2a2a2a", fontFamily: "monospace", textAlign: "right" }}>
                   {todayShows.length} dubs · {DAY_LABELS[activeDay]} · cached weekly
                 </div>
-              </div>
+              </motion.div>
+              </AnimatePresence>
             );
           })()}
         </>
