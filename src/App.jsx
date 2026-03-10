@@ -582,6 +582,21 @@ function AnimeCard({ anime, airingInfo }) {
   const accentColor = anime.coverImage?.color || "#dc2626";
   const platforms = getStreamingPlatforms(anime);
 
+  // Airing alert
+  let airingLabel = null, airingColor = null, airingBg = null, airingBorder = null, airingIcon = null;
+  if (airingInfo) {
+    const { epNum, diffDays } = airingInfo;
+    const isToday    = diffDays <= 0;
+    const isTomorrow = diffDays === 1;
+    airingLabel  = isToday    ? `Ep ${epNum} dub is airing today`
+                 : isTomorrow ? `Ep ${epNum} dub airs tomorrow`
+                              : `Ep ${epNum} dub airs in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
+    airingColor  = isToday ? "#f87171" : isTomorrow ? "#fb923c" : "#60a5fa";
+    airingBg     = isToday ? "rgba(220,38,38,0.12)" : isTomorrow ? "rgba(251,146,60,0.1)" : "rgba(96,165,250,0.08)";
+    airingBorder = isToday ? "rgba(220,38,38,0.35)" : isTomorrow ? "rgba(251,146,60,0.3)" : "rgba(96,165,250,0.25)";
+    airingIcon   = isToday ? "◉" : "◷";
+  }
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -627,6 +642,23 @@ function AnimeCard({ anime, airingInfo }) {
           </div>
         )}
 
+        {/* Airing-soon alert */}
+        {airingLabel && (
+          <div style={{
+            marginTop: "8px",
+            padding: "6px 8px",
+            borderRadius: "6px",
+            background: airingBg,
+            border: `1px solid ${airingBorder}`,
+            display: "flex", alignItems: "center", gap: "5px",
+          }}>
+            <span style={{ fontSize: "9px", lineHeight: 1, flexShrink: 0, color: airingColor }}>{airingIcon}</span>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: airingColor, letterSpacing: "0.02em", lineHeight: 1.3 }}>
+              {airingLabel}
+            </span>
+          </div>
+        )}
+
         {/* Streaming platform pills */}
         {platforms.length > 0 && (
           <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", gap: "4px", flexWrap: "wrap" }}>
@@ -649,42 +681,6 @@ function AnimeCard({ anime, airingInfo }) {
           </div>
         )}
 
-        {/* Airing-soon alert */}
-        {airingInfo && (() => {
-          const { epNum, diffDays } = airingInfo;
-          const isToday    = diffDays <= 0;
-          const isTomorrow = diffDays === 1;
-          const label = isToday
-            ? `Ep ${epNum} dub is airing today`
-            : isTomorrow
-              ? `Ep ${epNum} dub airs tomorrow`
-              : `Ep ${epNum} dub airs in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
-          const color  = isToday ? "#f87171" : isTomorrow ? "#fb923c" : "#60a5fa";
-          const bg     = isToday ? "rgba(220,38,38,0.12)" : isTomorrow ? "rgba(251,146,60,0.1)" : "rgba(96,165,250,0.08)";
-          const border = isToday ? "rgba(220,38,38,0.35)" : isTomorrow ? "rgba(251,146,60,0.3)" : "rgba(96,165,250,0.25)";
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 28, delay: 0.15 }}
-              style={{
-                marginTop: "8px",
-                padding: "5px 8px",
-                borderRadius: "6px",
-                background: bg,
-                border: `1px solid ${border}`,
-                display: "flex", alignItems: "center", gap: "5px",
-              }}
-            >
-              <span style={{ fontSize: "9px", lineHeight: 1, flexShrink: 0 }}>
-                {isToday ? "◉" : "◷"}
-              </span>
-              <span style={{ fontSize: "10px", fontWeight: 700, color, letterSpacing: "0.02em", lineHeight: 1.3 }}>
-                {label}
-              </span>
-            </motion.div>
-          );
-        })()}
       </div>
     </div>
   );
