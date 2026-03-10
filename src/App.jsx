@@ -1217,6 +1217,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
         border: `1px solid ${hovered ? hoverBorder : isAiringNow ? "rgba(220,38,38,0.3)" : isNewDub ? "rgba(250,204,21,0.25)" : accentColor ? `${accentColor}40` : "rgba(255,255,255,0.06)"}`,
         borderRadius: "9px", overflow: "hidden",
         display: "flex", alignItems: "stretch",
+        minHeight: "100px",
         cursor: primaryUrl ? "pointer" : "default",
         transition: "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
         boxShadow: hovered && accentColor ? `0 4px 24px ${accentColor}22` : isAiringNow ? "0 0 16px rgba(220,38,38,0.1)" : "none",
@@ -1225,7 +1226,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
     >
       {/* Cover image */}
       {img && (
-        <div style={{ width: "48px", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+        <div style={{ width: "clamp(80px, 6vw, 110px)", aspectRatio: "2/3", flexShrink: 0, overflow: "hidden", position: "relative" }}>
           <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.3s ease", transform: hovered ? "scale(1.08)" : "scale(1)" }} />
           {hovered && accentColor && <div style={{ position: "absolute", inset: 0, background: `${accentColor}33` }} />}
         </div>
