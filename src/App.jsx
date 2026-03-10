@@ -1422,19 +1422,35 @@ function AiringPage({ isMobile = false }) {
   const searchBarRef = useRef(null);
   const { scrollY } = useScroll();
   const [searchCollapsed, setSearchCollapsed] = useState(false);
+  const collapseTimerRef = useRef(null);
 
-  useMotionValueEvent(scrollY, "change", () => {
+  useMotionValueEvent(scrollY, "change", (y) => {
     if (!isMobile) return;
-    if (!searchBarRef.current) return;
-    const rect = searchBarRef.current.getBoundingClientRect();
-    // Collapse when the search bar top hits the sticky header (~56px)
-    const should = rect.top <= 58;
-    setSearchCollapsed(should);
-    window.dispatchEvent(new CustomEvent("animedub:searchcollapsed", { detail: should }));
+    // Clamp to 0 — Safari rubber-band produces negative values, ignore them
+    const sy = Math.max(0, y);
+    // Hysteresis: collapse at 110px, uncollapse at 60px — prevents flickering
+    // at the threshold when Safari's toolbar animates
+    const shouldCollapse   = sy > 110;
+    const shouldUncollapse = sy < 60;
+    if (!shouldCollapse && !shouldUncollapse) return;
+    const next = shouldCollapse;
+    // Debounce 80ms so toolbar resize noise doesn't re-trigger
+    clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = setTimeout(() => {
+      setSearchCollapsed(prev => {
+        if (prev === next) return prev;
+        window.dispatchEvent(new CustomEvent("animedub:searchcollapsed", { detail: next }));
+        return next;
+      });
+    }, 80);
   });
 
-  // Search bar width: shrinks from 100% → 40% as user scrolls 0→120px
-  const searchBarWidth = useTransform(scrollY, [0, 120], ["100%", "40%"]);
+  // Search bar width: shrinks from 100% → 40% as user scrolls 0→110px
+  // clamp(0,y,110) so rubber-band negatives don't push it over 100%
+  const searchBarWidth = useTransform(scrollY, (y) => {
+    const pct = Math.min(1, Math.max(0, y) / 110);
+    return `${100 - pct * 60}%`;
+  });
   const mobileSearchWidth = isMobile ? searchBarWidth : undefined;
 
   // Header icon taps open the search bar from collapsed state
@@ -1446,7 +1462,10 @@ function AiringPage({ isMobile = false }) {
       setTimeout(() => searchRef.current?.focus(), 400);
     };
     window.addEventListener("animedub:opensearch", handler);
-    return () => window.removeEventListener("animedub:opensearch", handler);
+    return () => {
+      window.removeEventListener("animedub:opensearch", handler);
+      clearTimeout(collapseTimerRef.current);
+    };
   }, []);
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2666,7 +2685,16 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #080808; -webkit-text-size-adjust: 100%; }
+        html { height: -webkit-fill-available; }
+        body {
+          background: #080808;
+          -webkit-text-size-adjust: 100%;
+          overscroll-behavior: none;
+          overscroll-behavior-y: none;
+          -webkit-overflow-scrolling: touch;
+          min-height: 100vh;
+          min-height: -webkit-fill-available;
+        }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #080808; }
         ::-webkit-scrollbar-thumb { background: #1f0505; border-radius: 3px; }
