@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { motion, AnimatePresence, useAnimate, stagger, MotionConfig } from "motion/react";
+import { motion, AnimatePresence, useAnimate, stagger, MotionConfig, useScroll, useTransform, useMotionValueEvent } from "motion/react";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
@@ -1418,7 +1418,24 @@ function AiringPage({ isMobile = false }) {
   const [error, setError] = useState(null);
   const [lastFetch, setLastFetch] = useState(null);
 
-  // ── Search state ──────────────────────────────────────────────────────────
+  // ── Scroll-linked animations (mobile only) ────────────────────────────────
+  const searchBarRef = useRef(null);
+  const { scrollY } = useScroll();
+  const [logoFloating, setLogoFloating] = useState(false);
+
+  useMotionValueEvent(scrollY, "change", (y) => {
+    if (!isMobile) return;
+    if (!searchBarRef.current) return;
+    const rect = searchBarRef.current.getBoundingClientRect();
+    const shouldFloat = rect.bottom < 72;
+    setLogoFloating(shouldFloat);
+    window.dispatchEvent(new CustomEvent("animedub:logofloat", { detail: shouldFloat }));
+  });
+
+  // Search bar width: shrinks from 100% → 40% as user scrolls 0→120px
+  const searchBarWidth = useTransform(scrollY, [0, 120], ["100%", "40%"]);
+  // Only apply on mobile
+  const mobileSearchWidth = isMobile ? searchBarWidth : undefined;
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -1531,7 +1548,16 @@ function AiringPage({ isMobile = false }) {
       </div>
 
       {/* ── Search bar ── */}
-      <div style={{ marginBottom: "20px", position: "relative" }}>
+      <motion.div
+        ref={searchBarRef}
+        style={{
+          marginBottom: "20px",
+          position: "relative",
+          width: mobileSearchWidth,
+          marginLeft: "auto",
+          originX: 1,
+        }}
+      >
         <div style={{
           display: "flex", alignItems: "center", gap: "8px",
           background: searchFocused ? "#161616" : "#0f0f0f",
@@ -1655,7 +1681,7 @@ function AiringPage({ isMobile = false }) {
             )}
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Calendar — fades out when search is open */}
       <div style={{ opacity: showingSearch ? 0 : 1, transition: "opacity 0.25s ease", pointerEvents: showingSearch ? "none" : "auto" }}>
@@ -2524,6 +2550,13 @@ export default function App() {
   const [firstRun, setFirstRun] = useState(false);
   const syncingRef = useRef(false);
   const { isMobile, isTablet } = useBreakpoint();
+  const [logoFloating, setLogoFloating] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => setLogoFloating(e.detail);
+    window.addEventListener("animedub:logofloat", handler);
+    return () => window.removeEventListener("animedub:logofloat", handler);
+  }, []);
 
   // ── Admin auth ──────────────────────────────────────────────────────────────
   const [authSession, setAuthSession] = useState(null);
@@ -2666,6 +2699,30 @@ export default function App() {
         </header>
 
         <div style={{ height: "2px", background: "linear-gradient(90deg, #dc2626, #7f1d1d 40%, transparent)" }} />
+
+        {/* Floating logo — slides in on mobile when search bar scrolls away */}
+        <AnimatePresence>
+          {isMobile && logoFloating && (
+            <motion.div
+              key="floating-logo"
+              initial={{ x: -80, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              style={{
+                position: "fixed", top: "12px", left: "14px", zIndex: 300,
+                display: "flex", alignItems: "center", gap: "7px",
+                background: "rgba(8,8,8,0.92)", backdropFilter: "blur(12px)",
+                border: "1px solid rgba(220,38,38,0.25)",
+                borderRadius: "10px", padding: "6px 12px 6px 8px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+              }}
+            >
+              <div style={{ width: "22px", height: "22px", background: "#dc2626", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#fff", fontFamily: "'Rajdhani',sans-serif", fontSize: "12px", flexShrink: 0 }}>A</div>
+              <span style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "15px", fontWeight: 700, color: "#fff", letterSpacing: "0.08em" }}>ANIME<span style={{ color: "#dc2626" }}>DUB</span></span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
 
 
