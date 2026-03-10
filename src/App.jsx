@@ -141,6 +141,24 @@ const supabase      = createClient(SUPABASE_URL, SUPABASE_KEY);
 const WEEK_MS       = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Supabase DB helpers ──────────────────────────────────────────────────────
+// Score how well an anime matches a search — higher = better match
+function matchScore(anime, words, fullTerm) {
+  const en = (anime.title?.english || "").toLowerCase();
+  const ro = (anime.title?.romaji  || "").toLowerCase();
+  const best = [en, ro];
+  let score = 0;
+  // Exact full-term match in either title = highest priority
+  if (best.some(t => t === fullTerm)) score += 100;
+  // Title starts with the full term
+  if (best.some(t => t.startsWith(fullTerm))) score += 50;
+  // Full term appears anywhere
+  if (best.some(t => t.includes(fullTerm))) score += 30;
+  // Count how many individual words appear
+  const wordHits = words.filter(w => best.some(t => t.includes(w))).length;
+  score += wordHits * 10;
+  return score;
+}
+
 const sbAnime = {
   getAll: async ({ status } = {}) => {
     let q = supabase.from("anime").select("*");
@@ -152,15 +170,33 @@ const sbAnime = {
   },
 
   search: async (term) => {
-    const q = term.toLowerCase();
-    const { data, error } = await supabase
-      .from("anime")
-      .select("*")
-      .or(`title->>english.ilike.%${q}%,title->>romaji.ilike.%${q}%`)
-      .order("score", { ascending: false })
-      .limit(48);
+    const words = term.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+
+    // Single-word: simple ilike on both title fields
+    // Multi-word: run each word as a separate ilike filter so "spy family"
+    // matches "Spy x Family" even though the words aren't contiguous
+    let q = supabase.from("anime").select("*");
+
+    for (const word of words) {
+      q = q.or(`title->>english.ilike.%${word}%,title->>romaji.ilike.%${word}%`);
+    }
+
+    const { data, error } = await q.order("score", { ascending: false }).limit(48);
     if (error) throw error;
-    return (data || []).map(normaliseRow);
+
+    const results = (data || []).map(normaliseRow);
+
+    // Boost results where the full term (or most words) appear — sort by match quality
+    const fullTerm = words.join(" ");
+    results.sort((a, b) => {
+      const scoreA = matchScore(a, words, fullTerm);
+      const scoreB = matchScore(b, words, fullTerm);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return (b.score || 0) - (a.score || 0); // tie-break by popularity
+    });
+
+    return results;
   },
 
   // Search synonyms array — Supabase text[] supports @> with ilike via unnest,
