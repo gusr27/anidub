@@ -1421,21 +1421,33 @@ function AiringPage({ isMobile = false }) {
   // ── Scroll-linked animations (mobile only) ────────────────────────────────
   const searchBarRef = useRef(null);
   const { scrollY } = useScroll();
-  const [logoFloating, setLogoFloating] = useState(false);
+  const [searchCollapsed, setSearchCollapsed] = useState(false);
 
-  useMotionValueEvent(scrollY, "change", (y) => {
+  useMotionValueEvent(scrollY, "change", () => {
     if (!isMobile) return;
     if (!searchBarRef.current) return;
     const rect = searchBarRef.current.getBoundingClientRect();
-    const shouldFloat = rect.bottom < 72;
-    setLogoFloating(shouldFloat);
-    window.dispatchEvent(new CustomEvent("animedub:logofloat", { detail: shouldFloat }));
+    // Collapse when the search bar top hits the sticky header (~56px)
+    const should = rect.top <= 58;
+    setSearchCollapsed(should);
+    window.dispatchEvent(new CustomEvent("animedub:searchcollapsed", { detail: should }));
   });
 
   // Search bar width: shrinks from 100% → 40% as user scrolls 0→120px
   const searchBarWidth = useTransform(scrollY, [0, 120], ["100%", "40%"]);
-  // Only apply on mobile
   const mobileSearchWidth = isMobile ? searchBarWidth : undefined;
+
+  // Header icon taps open the search bar from collapsed state
+  useEffect(() => {
+    const handler = () => {
+      setSearchCollapsed(false);
+      setSearchFocused(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => searchRef.current?.focus(), 400);
+    };
+    window.addEventListener("animedub:opensearch", handler);
+    return () => window.removeEventListener("animedub:opensearch", handler);
+  }, []);
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -1550,12 +1562,17 @@ function AiringPage({ isMobile = false }) {
       {/* ── Search bar ── */}
       <motion.div
         ref={searchBarRef}
+        layoutId="mobile-search"
         style={{
           marginBottom: "20px",
           position: "relative",
           width: mobileSearchWidth,
           marginLeft: "auto",
           originX: 1,
+          // When collapsed into header, keep it in DOM but visually hidden
+          // so layoutId morph can animate back out
+          opacity: isMobile && searchCollapsed && !searchFocused ? 0 : 1,
+          pointerEvents: isMobile && searchCollapsed && !searchFocused ? "none" : "auto",
         }}
       >
         <div style={{
@@ -1596,7 +1613,7 @@ function AiringPage({ isMobile = false }) {
           </div>
           {/* Clear / close button */}
           {searchFocused && (
-            <button onClick={() => { setSearchFocused(false); setSearchQuery(""); setSearchResults([]); }} style={{
+            <button onClick={() => { setSearchFocused(false); setSearchQuery(""); setSearchResults([]); setSearchCollapsed(false); }} style={{
               background: "transparent", border: "none", color: "#555", cursor: "pointer",
               fontSize: "18px", lineHeight: 1, padding: "0 2px", flexShrink: 0,
             }}>×</button>
@@ -2551,11 +2568,12 @@ export default function App() {
   const syncingRef = useRef(false);
   const { isMobile, isTablet } = useBreakpoint();
   const [logoFloating, setLogoFloating] = useState(false);
+  const [searchCollapsed, setSearchCollapsed] = useState(false);
 
   useEffect(() => {
-    const handler = (e) => setLogoFloating(e.detail);
-    window.addEventListener("animedub:logofloat", handler);
-    return () => window.removeEventListener("animedub:logofloat", handler);
+    const handler = (e) => setSearchCollapsed(e.detail);
+    window.addEventListener("animedub:searchcollapsed", handler);
+    return () => window.removeEventListener("animedub:searchcollapsed", handler);
   }, []);
 
   // ── Admin auth ──────────────────────────────────────────────────────────────
@@ -2700,27 +2718,28 @@ export default function App() {
 
         <div style={{ height: "2px", background: "linear-gradient(90deg, #dc2626, #7f1d1d 40%, transparent)" }} />
 
-        {/* Floating logo — slides in on mobile when search bar scrolls away */}
+        {/* Mobile search icon — morphs from the search bar when it scrolls behind the header */}
         <AnimatePresence>
-          {isMobile && logoFloating && (
-            <motion.div
-              key="floating-logo"
-              initial={{ x: -80, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -80, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          {isMobile && searchCollapsed && page === "airing" && (
+            <motion.button
+              key="header-search-icon"
+              layoutId="mobile-search"
+              onClick={() => window.dispatchEvent(new CustomEvent("animedub:opensearch"))}
+              initial={false}
+              transition={{ type: "spring", stiffness: 400, damping: 36 }}
               style={{
-                position: "fixed", top: "12px", left: "14px", zIndex: 300,
-                display: "flex", alignItems: "center", gap: "7px",
-                background: "rgba(8,8,8,0.92)", backdropFilter: "blur(12px)",
-                border: "1px solid rgba(220,38,38,0.25)",
-                borderRadius: "10px", padding: "6px 12px 6px 8px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+                position: "fixed", top: "10px", right: "14px", zIndex: 300,
+                background: "rgba(18,18,18,0.95)", backdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "10px",
+                width: "40px", height: "40px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.5)",
               }}
             >
-              <div style={{ width: "22px", height: "22px", background: "#dc2626", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: "#fff", fontFamily: "'Rajdhani',sans-serif", fontSize: "12px", flexShrink: 0 }}>A</div>
-              <span style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "15px", fontWeight: 700, color: "#fff", letterSpacing: "0.08em" }}>ANIME<span style={{ color: "#dc2626" }}>DUB</span></span>
-            </motion.div>
+              <span style={{ fontSize: "18px", color: "#888", lineHeight: 1 }}>⌕</span>
+            </motion.button>
           )}
         </AnimatePresence>
 
