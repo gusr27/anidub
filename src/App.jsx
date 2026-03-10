@@ -570,7 +570,7 @@ function getStreamingPlatforms(anime) {
 }
 
 // ─── AnimeCard ────────────────────────────────────────────────────────────────
-function AnimeCard({ anime }) {
+function AnimeCard({ anime, airingInfo }) {
   const [hovered, setHovered] = useState(false);
   const img = anime.coverImage?.large || anime.coverImage?.medium;
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : "N/A";
@@ -648,6 +648,43 @@ function AnimeCard({ anime }) {
             ))}
           </div>
         )}
+
+        {/* Airing-soon alert */}
+        {airingInfo && (() => {
+          const { epNum, diffDays } = airingInfo;
+          const isToday    = diffDays <= 0;
+          const isTomorrow = diffDays === 1;
+          const label = isToday
+            ? `Ep ${epNum} dub is airing today`
+            : isTomorrow
+              ? `Ep ${epNum} dub airs tomorrow`
+              : `Ep ${epNum} dub airs in ${diffDays} day${diffDays !== 1 ? "s" : ""}`;
+          const color  = isToday ? "#f87171" : isTomorrow ? "#fb923c" : "#60a5fa";
+          const bg     = isToday ? "rgba(220,38,38,0.12)" : isTomorrow ? "rgba(251,146,60,0.1)" : "rgba(96,165,250,0.08)";
+          const border = isToday ? "rgba(220,38,38,0.35)" : isTomorrow ? "rgba(251,146,60,0.3)" : "rgba(96,165,250,0.25)";
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28, delay: 0.15 }}
+              style={{
+                marginTop: "8px",
+                padding: "5px 8px",
+                borderRadius: "6px",
+                background: bg,
+                border: `1px solid ${border}`,
+                display: "flex", alignItems: "center", gap: "5px",
+              }}
+            >
+              <span style={{ fontSize: "9px", lineHeight: 1, flexShrink: 0 }}>
+                {isToday ? "◉" : "◷"}
+              </span>
+              <span style={{ fontSize: "10px", fontWeight: 700, color, letterSpacing: "0.02em", lineHeight: 1.3 }}>
+                {label}
+              </span>
+            </motion.div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1562,7 +1599,27 @@ function AiringPage({ isMobile = false }) {
                   {searchResults.length} results · {searchSource === "local" ? "Supabase DB" : "AniList API"}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(110px,1fr))" : "repeat(auto-fill, minmax(140px,1fr))", gap: "10px", padding: "12px" }}>
-                  {searchResults.map(a => <AnimeCard key={a.id} anime={a} />)}
+                  {searchResults.map(a => {
+                    // Cross-reference timetable: find any upcoming dub for this title
+                    const airingInfo = (() => {
+                      if (!grouped) return null;
+                      const titleWords = (a.title?.english || a.title?.romaji || "").toLowerCase().split(/\s+/).filter(Boolean);
+                      if (!titleWords.length) return null;
+                      const allShows = Object.values(grouped).flat();
+                      const match = allShows.find(s => {
+                        const sTitle = (s.english || s.romaji || s.title || "").toLowerCase();
+                        return titleWords.every(w => sTitle.includes(w));
+                      });
+                      if (!match) return null;
+                      const epDate = new Date(match.episodeDate);
+                      if (isNaN(epDate)) return null;
+                      const now = new Date();
+                      const diffMs = epDate - now;
+                      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                      return { epNum: match.episodeNumber, diffDays, epDate };
+                    })();
+                    return <AnimeCard key={a.id} anime={a} airingInfo={airingInfo} />;
+                  })}
                 </div>
               </div>
             )}
