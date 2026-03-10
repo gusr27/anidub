@@ -2,48 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "motion/react";
 
-// ─── usePosterColor — extract dominant color from poster via canvas ───────────
-function usePosterColor(imgUrl) {
-  const [color, setColor] = useState(null);
-  useEffect(() => {
-    if (!imgUrl) return;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        // Sample a small version for speed
-        canvas.width = 24; canvas.height = 36;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, 24, 36);
-        const data = ctx.getImageData(0, 0, 24, 36).data;
-
-        // Bucket pixels into coarse color groups, pick most frequent vivid one
-        const buckets = {};
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-          if (a < 128) continue;
-          // Skip near-black, near-white, and near-grey
-          const max = Math.max(r, g, b), min = Math.min(r, g, b);
-          const saturation = max === 0 ? 0 : (max - min) / max;
-          if (saturation < 0.2 || max < 40 || max > 240) continue;
-          // Quantize to 32-step buckets
-          const key = `${Math.round(r/32)*32},${Math.round(g/32)*32},${Math.round(b/32)*32}`;
-          buckets[key] = (buckets[key] || 0) + 1;
-        }
-        const best = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
-        if (best) {
-          const [r, g, b] = best[0].split(",").map(Number);
-          setColor(`rgb(${r},${g},${b})`);
-        }
-      } catch { /* canvas tainted — skip */ }
-    };
-    img.onerror = () => {};
-    img.src = imgUrl;
-  }, [imgUrl]);
-  return color;
-}
-
 // ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
 
@@ -487,29 +445,35 @@ function groupByDay(rawShows) {
 
 }
 
-// Given a show and the AniList local DB, return enriched streaming links
-// Falls back to AnimeSchedule streams, then animeschedule.net show page
-async function getShowLinks(show) {
-  // 1. Use streams from AnimeSchedule if they exist and are non-empty URLs
+// Given a show, return { links: {site:url}, color: "#hex"|null }
+async function getShowEnrichment(show) {
   const schedStreams = show.streams || {};
   const validStreams = Object.entries(schedStreams).filter(([, url]) => typeof url === "string" && url.startsWith("http"));
-  if (validStreams.length > 0) return Object.fromEntries(validStreams);
 
-  // 2. Cross-reference Supabase anime table by title match
+  // Try Supabase for color + links regardless of whether AnimeSchedule has streams
   try {
     const titleLower = (show.english || show.romaji || show.title || "").toLowerCase();
-    const matches = await sbAnime.search(titleLower);
+    const stripped = titleLower.replace(/\s+(season\s*\d+|part\s*\d+|cour\s*\d+)$/i, "").trim();
+    const matches = await sbAnime.search(stripped);
     const match = matches[0];
-    if (match?.externalLinks) {
-      const links = match.externalLinks
+    const color = match?.coverImage?.color || null;
+
+    // Use AnimeSchedule streams first, then fall back to Supabase externalLinks
+    let links = validStreams.length > 0
+      ? Object.fromEntries(validStreams)
+      : null;
+
+    if (!links && match?.externalLinks) {
+      const fromDb = match.externalLinks
         .filter(l => l.type === "STREAMING" && l.url)
         .reduce((acc, l) => { acc[l.site] = l.url; return acc; }, {});
-      if (Object.keys(links).length > 0) return links;
+      if (Object.keys(fromDb).length > 0) links = fromDb;
     }
+
+    return { links: links || {}, color };
   } catch {}
 
-  // No links found — return empty so card shows no stream area
-  return {};
+  return { links: validStreams.length > 0 ? Object.fromEntries(validStreams) : {}, color: null };
 }
 
 const STREAMING = [
@@ -1121,11 +1085,10 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
 }
 
 // ─── ShowCard (calendar) ──────────────────────────────────────────────────────
-function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, isAiringNow, isNewDub, isMobile }) {
+function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, posterColor, isAiringNow, isNewDub, isMobile }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const posterColor = usePosterColor(img);
-  // posterColor takes priority; fall back to stream color if not yet extracted
+  // posterColor from AniList DB takes priority; fall back to stream color
   const accentColor = posterColor || (primaryColor && primaryColor !== "#555" ? primaryColor : null);
 
   // ── Mobile card — poster left, info right ───────────────────────────────────
@@ -1357,6 +1320,7 @@ function AiringPage({ isMobile = false }) {
   const [activeDay, setActiveDay] = useState(todayIndex);
   const [grouped, setGrouped] = useState(null);
   const [enriched, setEnriched] = useState({});
+  const [posterColors, setPosterColors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetch, setLastFetch] = useState(null);
@@ -1411,15 +1375,19 @@ function AiringPage({ isMobile = false }) {
         try {
           const allShows = Object.values(g).flat();
           const enrichMap = {};
+          const colorMap = {};
           await Promise.all(allShows.map(async show => {
+            const key = show.route || show.title;
             try {
-              const links = await getShowLinks(show);
-              enrichMap[show.route || show.title] = links;
+              const { links, color } = await getShowEnrichment(show);
+              enrichMap[key] = links;
+              if (color) colorMap[key] = color;
             } catch {
-              enrichMap[show.route || show.title] = {};
+              enrichMap[key] = {};
             }
           }));
           setEnriched(enrichMap);
+          setPosterColors(colorMap);
         } catch { /* enrichment failure is non-fatal */ }
       })
       .catch(e => {
@@ -1684,6 +1652,7 @@ function AiringPage({ isMobile = false }) {
                           const primaryColor = getStreamColor(primarySite);
 
                           const isNewDub = epNum === 1;
+                          const posterColor = posterColors[key] || null;
                           return (
                             <ShowCard
                               key={i}
@@ -1694,6 +1663,7 @@ function AiringPage({ isMobile = false }) {
                               streamEntries={streamEntries}
                               primaryUrl={primaryUrl}
                               primaryColor={primaryColor}
+                              posterColor={posterColor}
                               isAiringNow={isAiringNow}
                               isNewDub={isNewDub}
                               isMobile={isMobile}
