@@ -1411,6 +1411,7 @@ function AiringPage({ isMobile = false }) {
   const todayIndex = new Date().getDay();
   const [activeDay, setActiveDay] = useState(todayIndex);
   const [grouped, setGrouped] = useState(null);
+  const [timetableIndex, setTimetableIndex] = useState({});
   const [enriched, setEnriched] = useState({});
   const [posterColors, setPosterColors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -1464,6 +1465,19 @@ function AiringPage({ isMobile = false }) {
         setGrouped(g);
         setLastFetch(Date.now());
         setLoading(false);
+
+        // Build a lookup map: normalised title word-set → timetable show
+        // Every show is indexed under all its title variants
+        const idx = {};
+        const allShows = Object.values(g).flat();
+        for (const s of allShows) {
+          const variants = [s.title, s.english, s.romaji].filter(Boolean);
+          for (const v of variants) {
+            const key = v.toLowerCase().trim();
+            if (key) idx[key] = s;
+          }
+        }
+        setTimetableIndex(idx);
         try {
           const allShows = Object.values(g).flat();
           const enrichMap = {};
@@ -1596,23 +1610,43 @@ function AiringPage({ isMobile = false }) {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(auto-fill, minmax(110px,1fr))" : "repeat(auto-fill, minmax(140px,1fr))", gap: "10px", padding: "12px" }}>
                   {searchResults.map(a => {
-                    // Cross-reference timetable: find any upcoming dub for this title
                     const airingInfo = (() => {
-                      if (!grouped) return null;
-                      const titleWords = (a.title?.english || a.title?.romaji || "").toLowerCase().split(/\s+/).filter(Boolean);
-                      if (!titleWords.length) return null;
-                      const allShows = Object.values(grouped).flat();
-                      const match = allShows.find(s => {
-                        const sTitle = (s.english || s.romaji || s.title || "").toLowerCase();
-                        return titleWords.every(w => sTitle.includes(w));
-                      });
+                      if (!Object.keys(timetableIndex).length) return null;
+                      const candidates = [
+                        a.title?.english,
+                        a.title?.romaji,
+                        ...(a.synonyms || []),
+                      ].filter(Boolean);
+
+                      let match = null;
+
+                      // Strategy 1: exact title key match
+                      for (const c of candidates) {
+                        const hit = timetableIndex[c.toLowerCase().trim()];
+                        if (hit) { match = hit; break; }
+                      }
+
+                      // Strategy 2: every word of the search title appears in a timetable title
+                      if (!match) {
+                        for (const c of candidates) {
+                          const words = c.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                          if (!words.length) continue;
+                          const hit = Object.values(timetableIndex).find(s => {
+                            const st = (s.title || "").toLowerCase();
+                            return words.every(w => st.includes(w));
+                          });
+                          if (hit) { match = hit; break; }
+                        }
+                      }
+
                       if (!match) return null;
                       const epDate = new Date(match.episodeDate);
                       if (isNaN(epDate)) return null;
-                      const now = new Date();
-                      const diffMs = epDate - now;
+                      const diffMs = epDate - Date.now();
                       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                      return { epNum: match.episodeNumber, diffDays, epDate };
+                      // Only show badge if within the next 7 days (including today/past-today)
+                      if (diffDays < -1 || diffDays > 7) return null;
+                      return { epNum: match.episodeNumber, diffDays };
                     })();
                     return <AnimeCard key={a.id} anime={a} airingInfo={airingInfo} />;
                   })}
