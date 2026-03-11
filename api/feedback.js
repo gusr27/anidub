@@ -13,29 +13,23 @@ async function createLinearIssue({ title, description, labelName }) {
   const apiKey = process.env.LINEAR_API_KEY;
   if (!apiKey) throw new Error("LINEAR_API_KEY not set");
 
-  console.log("[Linear] API key present, length:", apiKey.length);
-  console.log("[Linear] Key prefix:", apiKey.slice(0, 8));
-
   const headers = {
     "Content-Type": "application/json",
     Authorization: apiKey,
   };
 
-  // Single query: fetch team + labels in one round-trip
   const bootstrapRes = await fetch(LINEAR_API, {
     method: "POST",
     headers,
     body: JSON.stringify({
       query: `{
-        teams { nodes { id name } }
+        teams { nodes { id name states { nodes { id name type } } } }
         issueLabels { nodes { id name team { id } } }
       }`,
     }),
   });
 
-  console.log("[Linear] Bootstrap status:", bootstrapRes.status);
   const bootstrap = await bootstrapRes.json();
-  console.log("[Linear] Bootstrap response:", JSON.stringify(bootstrap));
 
   if (bootstrap.errors) {
     throw new Error("Linear auth/query failed: " + JSON.stringify(bootstrap.errors));
@@ -43,14 +37,14 @@ async function createLinearIssue({ title, description, labelName }) {
 
   const team = bootstrap?.data?.teams?.nodes?.[0];
   if (!team) throw new Error("No Linear team found — check your API key has access");
-  console.log("[Linear] Team:", team.id, team.name);
+
+  const todoState = team.states?.nodes?.find(s => s.type === "unstarted" && s.name.toLowerCase() === "todo")
+    || team.states?.nodes?.find(s => s.type === "unstarted");
 
   const label = bootstrap?.data?.issueLabels?.nodes?.find(
     l => l.name.toLowerCase() === labelName.toLowerCase() && l.team?.id === team.id
   );
-  console.log("[Linear] Label lookup for", labelName, "→", label ? label.id : "not found");
 
-  // Create the issue
   const mutation = `
     mutation CreateIssue($input: IssueCreateInput!) {
       issueCreate(input: $input) {
@@ -64,10 +58,9 @@ async function createLinearIssue({ title, description, labelName }) {
     teamId: team.id,
     title,
     description,
+    ...(todoState ? { stateId: todoState.id } : {}),
     ...(label ? { labelIds: [label.id] } : {}),
   };
-
-  console.log("[Linear] Creating issue with input:", JSON.stringify(input));
 
   const res = await fetch(LINEAR_API, {
     method: "POST",
@@ -75,9 +68,7 @@ async function createLinearIssue({ title, description, labelName }) {
     body: JSON.stringify({ query: mutation, variables: { input } }),
   });
 
-  console.log("[Linear] Create status:", res.status);
   const data = await res.json();
-  console.log("[Linear] Create response:", JSON.stringify(data));
 
   if (data.errors) {
     throw new Error("Linear mutation failed: " + JSON.stringify(data.errors));
