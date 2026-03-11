@@ -18,7 +18,7 @@ async function createLinearIssue({ title, description, labelName }) {
 
   const headers = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: apiKey,
   };
 
   // Single query: fetch team + labels in one round-trip
