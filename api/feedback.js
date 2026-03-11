@@ -13,30 +13,32 @@ async function createLinearIssue({ title, description, labelName }) {
   const apiKey = process.env.LINEAR_API_KEY;
   if (!apiKey) throw new Error("LINEAR_API_KEY not set");
 
-  // 1. Fetch team ID
-  const teamRes = await fetch(LINEAR_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: apiKey },
-    body: JSON.stringify({ query: `{ teams { nodes { id name } } }` }),
-  });
-  const teamData = await teamRes.json();
-  const team = teamData?.data?.teams?.nodes?.[0];
-  if (!team) throw new Error("No Linear team found");
+  console.log("[Linear] API key present, length:", apiKey.length);
+  console.log("[Linear] Key prefix:", apiKey.slice(0, 8));
 
-  // 2. Fetch label ID (create label if it doesn't exist yet is not supported here — pre-create in Linear)
-  const labelsRes = await fetch(LINEAR_API, {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // Single query: fetch team + labels in one round-trip
+  const bootstrapRes = await fetch(LINEAR_API, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: apiKey },
+    headers,
     body: JSON.stringify({
-      query: `{ issueLabels(filter: { team: { id: { eq: "${team.id}" } } }) { nodes { id name } } }`,
+      query: `{
+        teams { nodes { id name } }
+        issueLabels { nodes { id name team { id } } }
+      }`,
     }),
   });
   const labelsData = await labelsRes.json();
   const label = labelsData?.data?.issueLabels?.nodes?.find(
     l => l.name.toLowerCase() === labelName.toLowerCase()
   );
+  console.log("[Linear] Label lookup for", labelName, "→", label ? label.id : "not found");
 
-  // 3. Create issue
+  // Create the issue
   const mutation = `
     mutation CreateIssue($input: IssueCreateInput!) {
       issueCreate(input: $input) {
@@ -45,6 +47,7 @@ async function createLinearIssue({ title, description, labelName }) {
       }
     }
   `;
+
   const input = {
     teamId: team.id,
     title,
@@ -52,15 +55,25 @@ async function createLinearIssue({ title, description, labelName }) {
     ...(label ? { labelIds: [label.id] } : {}),
   };
 
+  console.log("[Linear] Creating issue with input:", JSON.stringify(input));
+
   const res = await fetch(LINEAR_API, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: apiKey },
+    headers,
     body: JSON.stringify({ query: mutation, variables: { input } }),
   });
+
+  console.log("[Linear] Create status:", res.status);
   const data = await res.json();
-  if (!data?.data?.issueCreate?.success) {
-    throw new Error("Linear issue creation failed: " + JSON.stringify(data?.errors));
+  console.log("[Linear] Create response:", JSON.stringify(data));
+
+  if (data.errors) {
+    throw new Error("Linear mutation failed: " + JSON.stringify(data.errors));
   }
+  if (!data?.data?.issueCreate?.success) {
+    throw new Error("Linear issueCreate returned success=false");
+  }
+
   return data.data.issueCreate.issue;
 }
 
