@@ -32,9 +32,21 @@ async function createLinearIssue({ title, description, labelName }) {
       }`,
     }),
   });
-  const labelsData = await labelsRes.json();
-  const label = labelsData?.data?.issueLabels?.nodes?.find(
-    l => l.name.toLowerCase() === labelName.toLowerCase()
+
+  console.log("[Linear] Bootstrap status:", bootstrapRes.status);
+  const bootstrap = await bootstrapRes.json();
+  console.log("[Linear] Bootstrap response:", JSON.stringify(bootstrap));
+
+  if (bootstrap.errors) {
+    throw new Error("Linear auth/query failed: " + JSON.stringify(bootstrap.errors));
+  }
+
+  const team = bootstrap?.data?.teams?.nodes?.[0];
+  if (!team) throw new Error("No Linear team found — check your API key has access");
+  console.log("[Linear] Team:", team.id, team.name);
+
+  const label = bootstrap?.data?.issueLabels?.nodes?.find(
+    l => l.name.toLowerCase() === labelName.toLowerCase() && l.team?.id === team.id
   );
   console.log("[Linear] Label lookup for", labelName, "→", label ? label.id : "not found");
 
