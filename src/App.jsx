@@ -380,6 +380,7 @@ const NAV = [
   { id: "search",          label: "Search",           icon: "⌕" },
   { id: "watch",           label: "Where to Watch",   icon: "◉" },
   { id: "recently_dubbed", label: "Recently Dubbed",  icon: "▶" },
+  { id: "feedback",        label: "Feedback",         icon: "✉" },
 ];
 
 const DAYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
@@ -2149,9 +2150,10 @@ function useBreakpoint() {
 
 // ─── Mobile Bottom Nav ────────────────────────────────────────────────────────
 const MOBILE_NAV = [
-  { id: "airing",          label: "Dub",             icon: "◷" },
-  { id: "recently_dubbed", label: "Recent",           icon: "▶" },
-  { id: "search",          label: "Search",           icon: "⌕" },
+  { id: "airing",    label: "Dub",      icon: "◷" },
+  { id: "recent",    label: "Recent",   icon: "▶" },
+  { id: "search",    label: "Search",   icon: "⌕" },
+  { id: "feedback",  label: "Feedback", icon: "✉" },
 ];
 
 function MobileNav({ page, setPage }) {
@@ -2578,6 +2580,284 @@ function AdminPage({ onLogout, onSync }) {
 }
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+// ─── FeedbackPage ─────────────────────────────────────────────────────────────
+const FORM_TYPES = [
+  { id: "bug",      label: "Bug Report",     icon: "⚠",  desc: "Something broken or not working right" },
+  { id: "revision", label: "Show Request",   icon: "✎",  desc: "Add or correct a show's dub info"       },
+  { id: "comment",  label: "Comment",        icon: "✉",  desc: "General feedback or suggestions"        },
+  { id: "question", label: "Question",       icon: "?",  desc: "Something you'd like an answer to"      },
+];
+
+const DUB_STATUS_OPTIONS = ["dubbed","likely_dubbed","sub_only","unknown"];
+
+function FormField({ label, required, children, hint }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <label style={{ fontSize: "12px", fontWeight: 700, color: "#888", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        {label}{required && <span style={{ color: "#dc2626", marginLeft: "3px" }}>*</span>}
+      </label>
+      {children}
+      {hint && <span style={{ fontSize: "11px", color: "#444" }}>{hint}</span>}
+    </div>
+  );
+}
+
+const inputStyle = {
+  background: "#0d0d0d", border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "8px", padding: "10px 12px", color: "#e0e0e0",
+  fontSize: "14px", fontFamily: "inherit", outline: "none", width: "100%",
+  transition: "border-color 0.2s",
+};
+const textareaStyle = { ...inputStyle, resize: "vertical", minHeight: "100px", lineHeight: 1.5 };
+
+function FeedbackPage({ isMobile }) {
+  const [type, setType]         = useState(null);
+  const [fields, setFields]     = useState({});
+  const [status, setStatus]     = useState("idle"); // idle | sending | success | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const set = (k, v) => setFields(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!type) return;
+    // Basic validation
+    if ((type === "comment" || type === "question") && !fields.message?.trim()) {
+      setErrorMsg("Please enter a message."); return;
+    }
+    if (type === "bug" && !fields.description?.trim()) {
+      setErrorMsg("Please describe the bug."); return;
+    }
+    if (type === "revision" && !fields.showName?.trim()) {
+      setErrorMsg("Please enter the show name."); return;
+    }
+    setErrorMsg("");
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, ...fields }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Server error");
+      setStatus("success");
+    } catch (e) {
+      setErrorMsg(e.message);
+      setStatus("error");
+    }
+  };
+
+  // ── Success state ──────────────────────────────────────────────────────────
+  if (status === "success") {
+    const isTicket = type === "bug" || type === "revision";
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        style={{ maxWidth: "520px", margin: "60px auto", textAlign: "center", padding: "0 16px" }}
+      >
+        <div style={{ fontSize: "48px", marginBottom: "20px" }}>
+          {isTicket ? "🎫" : "✉️"}
+        </div>
+        <h2 style={{ fontFamily: "'Rajdhani',sans-serif", fontSize: "26px", fontWeight: 700, color: "#fff", marginBottom: "10px" }}>
+          {isTicket ? "Ticket created" : "Message sent"}
+        </h2>
+        <p style={{ color: "#555", fontSize: "14px", lineHeight: 1.6 }}>
+          {isTicket
+            ? "Your report has been logged and we'll look into it. If you left your email, expect a reply once it's addressed."
+            : "Thanks for reaching out. We'll get back to you if a reply is needed."}
+        </p>
+        <button
+          onClick={() => { setStatus("idle"); setType(null); setFields({}); }}
+          style={{ ...btnStyle, marginTop: "28px" }}
+        >Submit another</button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+      {/* Page header */}
+      <div style={{ marginBottom: "32px" }}>
+        <h2 style={{ fontSize: "28px", fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, color: "#fff", marginBottom: "6px", letterSpacing: "0.05em" }}>
+          Feedback
+        </h2>
+        <p style={{ color: "#555", fontSize: "13px" }}>
+          Bug reports and show requests go straight to our tracker. Comments and questions come directly to us.
+        </p>
+      </div>
+
+      {/* Type selector */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "32px" }}>
+        {FORM_TYPES.map(t => (
+          <motion.button
+            key={t.id}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { setType(t.id); setFields({}); setErrorMsg(""); setStatus("idle"); }}
+            style={{
+              background: type === t.id ? "rgba(220,38,38,0.12)" : "#0d0d0d",
+              border: `1px solid ${type === t.id ? "rgba(220,38,38,0.5)" : "rgba(255,255,255,0.08)"}`,
+              borderRadius: "10px", padding: "14px 12px",
+              cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+            }}
+          >
+            <div style={{ fontSize: "20px", marginBottom: "6px" }}>{t.icon}</div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: type === t.id ? "#f87171" : "#e0e0e0", fontFamily: "'Rajdhani',sans-serif", letterSpacing: "0.03em", marginBottom: "3px" }}>{t.label}</div>
+            <div style={{ fontSize: "11px", color: "#444", lineHeight: 1.4 }}>{t.desc}</div>
+          </motion.button>
+        ))}
+      </div>
+
+      {/* Form fields */}
+      <AnimatePresence mode="wait">
+        {type && (
+          <motion.div
+            key={type}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ type: "spring", stiffness: 340, damping: 30 }}
+            style={{ display: "flex", flexDirection: "column", gap: "18px" }}
+          >
+            {/* ── Bug report fields ── */}
+            {type === "bug" && (<>
+              <FormField label="Description" required>
+                <textarea value={fields.description || ""} onChange={e => set("description", e.target.value)}
+                  placeholder="What went wrong? Be as specific as you can." style={textareaStyle} />
+              </FormField>
+              <FormField label="Steps to reproduce" hint="Optional but very helpful">
+                <textarea value={fields.steps || ""} onChange={e => set("steps", e.target.value)}
+                  placeholder={"1. Go to...\n2. Tap...\n3. See error"} style={{ ...textareaStyle, minHeight: "80px" }} />
+              </FormField>
+              <FormField label="Expected behaviour">
+                <input value={fields.expected || ""} onChange={e => set("expected", e.target.value)}
+                  placeholder="What should have happened?" style={inputStyle} />
+              </FormField>
+              <FormField label="Device / Browser">
+                <input value={fields.device || ""} onChange={e => set("device", e.target.value)}
+                  placeholder="e.g. iPhone 15 / Safari 17" style={inputStyle} />
+              </FormField>
+            </>)}
+
+            {/* ── Show revision / addition fields ── */}
+            {type === "revision" && (<>
+              <FormField label="Request type" required>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {["addition","correction"].map(v => (
+                    <button key={v} onClick={() => set("revisionType", v)} style={{
+                      flex: 1, padding: "8px", borderRadius: "7px", cursor: "pointer",
+                      fontSize: "12px", fontWeight: 700, fontFamily: "inherit",
+                      background: fields.revisionType === v ? "rgba(220,38,38,0.15)" : "#111",
+                      border: `1px solid ${fields.revisionType === v ? "rgba(220,38,38,0.45)" : "rgba(255,255,255,0.08)"}`,
+                      color: fields.revisionType === v ? "#f87171" : "#666",
+                      transition: "all 0.15s", textTransform: "capitalize",
+                    }}>{v === "addition" ? "Add new show" : "Correct existing show"}</button>
+                  ))}
+                </div>
+              </FormField>
+              <FormField label="Show name" required>
+                <input value={fields.showName || ""} onChange={e => set("showName", e.target.value)}
+                  placeholder="e.g. Spy x Family" style={inputStyle} />
+              </FormField>
+              <FormField label="Details" required>
+                <textarea value={fields.requestDetail || ""} onChange={e => set("requestDetail", e.target.value)}
+                  placeholder={fields.revisionType === "addition"
+                    ? "Tell us about the show — dub status, where it streams, any links..."
+                    : "What's incorrect and what should it be?"}
+                  style={textareaStyle} />
+              </FormField>
+              {fields.revisionType === "correction" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <FormField label="Current (wrong) status">
+                    <select value={fields.currentStatus || ""} onChange={e => set("currentStatus", e.target.value)}
+                      style={{ ...inputStyle, appearance: "none" }}>
+                      <option value="">Select…</option>
+                      {DUB_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                    </select>
+                  </FormField>
+                  <FormField label="Correct status">
+                    <select value={fields.correctStatus || ""} onChange={e => set("correctStatus", e.target.value)}
+                      style={{ ...inputStyle, appearance: "none" }}>
+                      <option value="">Select…</option>
+                      {DUB_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                    </select>
+                  </FormField>
+                </div>
+              )}
+              <FormField label="Source / reference URL" hint="A link proving the dub exists or confirming the info">
+                <input value={fields.sourceUrl || ""} onChange={e => set("sourceUrl", e.target.value)}
+                  placeholder="https://..." style={inputStyle} type="url" />
+              </FormField>
+            </>)}
+
+            {/* ── Comment / question fields ── */}
+            {(type === "comment" || type === "question") && (
+              <FormField label="Message" required>
+                <textarea value={fields.message || ""} onChange={e => set("message", e.target.value)}
+                  placeholder={type === "question" ? "What would you like to know?" : "What's on your mind?"}
+                  style={{ ...textareaStyle, minHeight: "120px" }} />
+              </FormField>
+            )}
+
+            {/* Email — shown on all types */}
+            <FormField
+              label="Your email"
+              hint={(type === "bug" || type === "revision")
+                ? "Optional — we'll update you when the ticket is resolved"
+                : type === "question"
+                  ? "Required if you want a reply"
+                  : "Optional"}
+            >
+              <input value={fields.email || ""} onChange={e => set("email", e.target.value)}
+                placeholder="you@example.com" type="email" style={inputStyle} />
+            </FormField>
+
+            {/* Error */}
+            {errorMsg && (
+              <div style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", color: "#f87171" }}>
+                {errorMsg}
+              </div>
+            )}
+
+            {/* Submit */}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleSubmit}
+              disabled={status === "sending"}
+              style={{
+                ...btnStyle,
+                opacity: status === "sending" ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                padding: "13px 24px", fontSize: "14px",
+              }}
+            >
+              {status === "sending" ? (
+                <>
+                  <span style={{ display: "inline-flex", gap: "4px" }}>
+                    {[0,1,2].map(i => <span key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#fff", animation: `pulse 1s ${i*0.2}s infinite`, display: "inline-block" }} />)}
+                  </span>
+                  Sending…
+                </>
+              ) : (
+                <>
+                  {type === "bug" ? "Submit Bug Report" : type === "revision" ? "Submit Request" : "Send Message"}
+                  <span style={{ fontSize: "12px" }}>→</span>
+                </>
+              )}
+            </motion.button>
+
+            {(type === "bug" || type === "revision") && (
+              <p style={{ fontSize: "11px", color: "#333", textAlign: "center", marginTop: "-6px" }}>
+                Submitted reports go directly into our issue tracker
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function App() {
   // Detect /admin route
   const isAdminRoute = window.location.pathname === "/admin";
@@ -2789,6 +3069,7 @@ export default function App() {
               {page === "upcoming"        && <UpcomingPage gridMinCard={gridMinCard} />}
               {page === "search"          && <SearchPage   gridMinCard={gridMinCard} isMobile={isMobile} />}
               {page === "watch"           && <WatchPage isMobile={isMobile} />}
+              {page === "feedback"        && <FeedbackPage isMobile={isMobile} />}
               {page === "recently_dubbed" && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "40vh", gap: "12px", color: "#333" }}>
                   <span style={{ fontSize: "32px" }}>▶</span>

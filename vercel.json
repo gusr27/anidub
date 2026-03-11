@@ -1,7 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/anilist", "destination": "/api/anilist" },
+    { "source": "/api/anilist",       "destination": "/api/anilist" },
     { "source": "/api/animeschedule", "destination": "/api/animeschedule" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/api/feedback",      "destination": "/api/feedback" },
+    { "source": "/((?!api/).*)",      "destination": "/index.html" }
   ]
 }
