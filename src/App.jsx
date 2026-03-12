@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence, useAnimate, stagger, MotionConfig, useScroll, useTransform, useMotionValueEvent } from "motion/react";
 
-// ─── AniList GraphQL ──────────────────────────────────────────────────────────
+// ───- AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
 
 const MEDIA_FIELDS = `
