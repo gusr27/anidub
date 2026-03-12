@@ -162,7 +162,7 @@ function revisionMarkdown(fields) {
 function commentHtml(fields) {
   return `
     <div style="font-family:sans-serif;max-width:600px">
-      <h2 style="color:#dc2626">AnimeDUB — ${fields.type === "question" ? "Question" : "Comment"}</h2>
+      <h2 style="color:#dc2626">AnimeDUB — Message</h2>
       <p><strong>From:</strong> ${fields.email || "Anonymous"}</p>
       <p><strong>Date:</strong> ${new Date().toUTCString()}</p>
       <hr/>
@@ -222,9 +222,9 @@ export default async function handler(req, res) {
       }
     }
 
-    else if (type === "comment" || type === "question") {
+    else if (type === "message") {
       await sendEmail({
-        subject: `[AnimeDUB] ${type === "question" ? "Question" : "Comment"} from ${fields.email || "Anonymous"}`,
+        subject: `[AnimeDUB] Message from ${fields.email || "Anonymous"}`,
         replyTo: fields.email || undefined,
         html: commentHtml(fields),
       });

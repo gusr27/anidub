@@ -2582,10 +2582,9 @@ function AdminPage({ onLogout, onSync }) {
 // ─── App Root ─────────────────────────────────────────────────────────────────
 // ─── FeedbackPage ─────────────────────────────────────────────────────────────
 const FORM_TYPES = [
-  { id: "bug",      label: "Bug Report",     icon: "⚠",  desc: "Something broken or not working right" },
-  { id: "revision", label: "Show Request",   icon: "✎",  desc: "Add or correct a show's dub info"       },
-  { id: "comment",  label: "Comment",        icon: "✉",  desc: "General feedback or suggestions"        },
-  { id: "question", label: "Question",       icon: "?",  desc: "Something you'd like an answer to"      },
+  { id: "bug",     label: "Bug Report",   icon: "⚠",  desc: "Something broken or not working right" },
+  { id: "revision",label: "Show Request", icon: "✎",  desc: "Add or correct a show's dub info"       },
+  { id: "message", label: "Message Us",   icon: "✉",  desc: "Comments, questions, or anything else"  },
 ];
 
 const DUB_STATUS_OPTIONS = ["dubbed","likely_dubbed","sub_only","unknown"];
@@ -2621,7 +2620,7 @@ function FeedbackPage({ isMobile }) {
   const handleSubmit = async () => {
     if (!type) return;
     // Basic validation
-    if ((type === "comment" || type === "question") && !fields.message?.trim()) {
+    if (type === "message" && !fields.message?.trim()) {
       setErrorMsg("Please enter a message."); return;
     }
     if (type === "bug" && !fields.description?.trim()) {
@@ -2790,11 +2789,11 @@ function FeedbackPage({ isMobile }) {
               </FormField>
             </>)}
 
-            {/* ── Comment / question fields ── */}
-            {(type === "comment" || type === "question") && (
+            {/* ── Message fields ── */}
+            {type === "message" && (
               <FormField label="Message" required>
                 <textarea value={fields.message || ""} onChange={e => set("message", e.target.value)}
-                  placeholder={type === "question" ? "What would you like to know?" : "What's on your mind?"}
+                  placeholder="Comments, questions, suggestions — anything you'd like us to know."
                   style={{ ...textareaStyle, minHeight: "120px" }} />
               </FormField>
             )}
@@ -2804,9 +2803,7 @@ function FeedbackPage({ isMobile }) {
               label="Your email"
               hint={(type === "bug" || type === "revision")
                 ? "Optional — we'll update you when the ticket is resolved"
-                : type === "question"
-                  ? "Required if you want a reply"
-                  : "Optional"}
+                : "Optional — include it if you'd like a reply"}
             >
               <input value={fields.email || ""} onChange={e => set("email", e.target.value)}
                 placeholder="you@example.com" type="email" style={inputStyle} />
