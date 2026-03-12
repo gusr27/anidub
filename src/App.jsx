@@ -2700,7 +2700,7 @@ function FeedbackPage({ isMobile }) {
               cursor: "pointer", textAlign: "left", transition: "all 0.15s",
             }}
           >
-            <div style={{ fontSize: "20px", marginBottom: "6px" }}>{t.icon}</div>
+            <div style={{ fontSize: "20px", marginBottom: "6px", color: "#fff" }}>{t.icon}</div>
             <div style={{ fontSize: "13px", fontWeight: 700, color: type === t.id ? "#f87171" : "#e0e0e0", fontFamily: "'Rajdhani',sans-serif", letterSpacing: "0.03em", marginBottom: "3px" }}>{t.label}</div>
             <div style={{ fontSize: "11px", color: "#444", lineHeight: 1.4 }}>{t.desc}</div>
           </motion.button>
