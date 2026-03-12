@@ -495,6 +495,12 @@ async function getShowEnrichment(show) {
     const match = matches[0];
     const color = match?.coverImage?.color || null;
 
+    // Dub lag: nextAiringEpisode.episode - 1 = latest sub ep; lag = that - current dub ep
+    const nextSubEp  = match?.nextAiringEpisode?.episode ?? null;
+    const latestSub  = nextSubEp != null ? nextSubEp - 1 : null;
+    const dubEp      = show.episodeNumber || 0;
+    const dubLag     = (latestSub != null && dubEp > 0) ? latestSub - dubEp : null;
+
     // Use AnimeSchedule streams first, then fall back to Supabase externalLinks
     let links = validStreams.length > 0
       ? Object.fromEntries(validStreams)
@@ -507,10 +513,10 @@ async function getShowEnrichment(show) {
       if (Object.keys(fromDb).length > 0) links = fromDb;
     }
 
-    return { links: links || {}, color };
+    return { links: links || {}, color, dubLag };
   } catch {}
 
-  return { links: validStreams.length > 0 ? Object.fromEntries(validStreams) : {}, color: null };
+  return { links: validStreams.length > 0 ? Object.fromEntries(validStreams) : {}, color: null, dubLag: null };
 }
 
 const STREAMING = [
@@ -909,6 +915,16 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
   // Total eps in the season from Supabase (0 = unknown)
   const totalEps = dbData?.episodes || 0;
 
+  // ── Dub lag vs sub ──────────────────────────────────────────────────────────
+  // nextAiringEpisode.episode = next sub ep yet to air, so latest subbed = episode - 1
+  const nextSubEp    = dbData?.nextAiringEpisode?.episode ?? null;
+  const latestSubEp  = nextSubEp != null ? nextSubEp - 1 : null;
+  const dubLag       = (latestSubEp != null && currentDubEp > 0)
+    ? latestSubEp - currentDubEp
+    : null;
+  // Approximate weeks behind (assumes weekly release cadence)
+  const weeksBehind  = dubLag != null ? Math.round(dubLag) : null;
+
   // Last aired date — only if schedDate has passed
   const lastAiredDate = schedIsPast ? schedDate : null;
   const lastAiredIsToday = lastAiredDate && new Date().toDateString() === lastAiredDate.toDateString();
@@ -1039,8 +1055,8 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
             )}
           </div>
 
-          {/* Three info boxes */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "18px" }}>
+          {/* Info boxes — 2x2 grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "18px" }}>
             {/* Score */}
             <div style={infoBoxStyle}>
               <span style={infoLabelStyle}>Score</span>
@@ -1048,6 +1064,27 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
                 {score ? `${score}` : "—"}
               </span>
               {score && <span style={{ fontSize: "9px", color: "#444" }}> / 100</span>}
+            </div>
+
+            {/* Dub lag */}
+            <div style={infoBoxStyle}>
+              <span style={infoLabelStyle}>Dub Lag</span>
+              {dubLag === null ? (
+                <span style={{ ...infoValueStyle, color: "#333" }}>—</span>
+              ) : dubLag === 0 ? (
+                <>
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#4ade80" }}>Caught up</span>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: "22px", fontWeight: 800, color: dubLag >= 6 ? "#f87171" : dubLag >= 3 ? "#fb923c" : "#facc15", lineHeight: 1, fontFamily: "'Rajdhani', sans-serif" }}>
+                    {dubLag}
+                  </span>
+                  <span style={{ fontSize: "10px", color: "#555", fontWeight: 600 }}>
+                    ep{dubLag !== 1 ? "s" : ""} · ~{weeksBehind}w behind
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Last aired */}
@@ -1162,7 +1199,7 @@ function ShowModal({ show, title, epNum, img, streamEntries, isAiringNow, isNewD
 }
 
 // ─── ShowCard (calendar) ──────────────────────────────────────────────────────
-function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, posterColor, isAiringNow, isNewDub, isMobile }) {
+function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryColor, posterColor, dubLag, isAiringNow, isNewDub, isMobile }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   // posterColor from AniList DB takes priority; fall back to stream color
@@ -1372,6 +1409,30 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             })}
           </div>
         )}
+
+        {/* Dub lag pill */}
+        {dubLag != null && dubLag > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <span style={{
+              fontSize: "10px", fontWeight: 700, padding: "2px 7px",
+              borderRadius: "4px", fontFamily: "monospace", letterSpacing: "0.03em",
+              background: dubLag >= 6 ? "rgba(248,113,113,0.1)" : dubLag >= 3 ? "rgba(251,146,60,0.1)" : "rgba(250,204,21,0.1)",
+              color: dubLag >= 6 ? "#f87171" : dubLag >= 3 ? "#fb923c" : "#facc15",
+              border: `1px solid ${dubLag >= 6 ? "rgba(248,113,113,0.3)" : dubLag >= 3 ? "rgba(251,146,60,0.3)" : "rgba(250,204,21,0.3)"}`,
+              display: "inline-block",
+            }}>
+              {dubLag} ep{dubLag !== 1 ? "s" : ""} behind
+            </span>
+          </div>
+        )}
+        {dubLag === 0 && (
+          <span style={{
+            fontSize: "10px", fontWeight: 700, padding: "2px 7px",
+            borderRadius: "4px", fontFamily: "monospace", letterSpacing: "0.03em",
+            background: "rgba(74,222,128,0.1)", color: "#4ade80",
+            border: "1px solid rgba(74,222,128,0.25)", display: "inline-block",
+          }}>Caught up</span>
+        )}
       </div>
 
       {/* Arrow on hover */}
@@ -1415,6 +1476,7 @@ function AiringPage({ isMobile = false }) {
   const [timetableIndex, setTimetableIndex] = useState({});
   const [enriched, setEnriched] = useState({});
   const [posterColors, setPosterColors] = useState({});
+  const [dubLags, setDubLags] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastFetch, setLastFetch] = useState(null);
@@ -1531,18 +1593,21 @@ function AiringPage({ isMobile = false }) {
           const allShows = Object.values(g).flat();
           const enrichMap = {};
           const colorMap = {};
+          const lagMap = {};
           await Promise.all(allShows.map(async show => {
             const key = show.route || show.title;
             try {
-              const { links, color } = await getShowEnrichment(show);
+              const { links, color, dubLag } = await getShowEnrichment(show);
               enrichMap[key] = links;
               if (color) colorMap[key] = color;
+              if (dubLag != null) lagMap[key] = dubLag;
             } catch {
               enrichMap[key] = {};
             }
           }));
           setEnriched(enrichMap);
           setPosterColors(colorMap);
+          setDubLags(lagMap);
         } catch { /* enrichment failure is non-fatal */ }
       })
       .catch(e => {
@@ -1873,6 +1938,7 @@ function AiringPage({ isMobile = false }) {
 
                           const isNewDub = epNum === 1;
                           const posterColor = posterColors[key] || null;
+                          const dubLag = dubLags[key] ?? null;
                           return (
                             <ShowCard
                               key={i}
@@ -1884,6 +1950,7 @@ function AiringPage({ isMobile = false }) {
                               primaryUrl={primaryUrl}
                               primaryColor={primaryColor}
                               posterColor={posterColor}
+                              dubLag={dubLag}
                               isAiringNow={isAiringNow}
                               isNewDub={isNewDub}
                               isMobile={isMobile}
