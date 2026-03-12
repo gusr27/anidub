@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence, useAnimate, stagger, MotionConfig, useScroll, useTransform, useMotionValueEvent } from "motion/react";
 
-// ───- AniList GraphQL ──────────────────────────────────────────────────────────
+// ─── AniList GraphQL ──────────────────────────────────────────────────────────
 const ANILIST_URL = "/api/anilist";
 
 const MEDIA_FIELDS = `
@@ -1431,6 +1431,7 @@ function ShowCard({ show, title, epNum, img, streamEntries, primaryUrl, primaryC
             borderRadius: "4px", fontFamily: "monospace", letterSpacing: "0.03em",
             background: "rgba(74,222,128,0.1)", color: "#4ade80",
             border: "1px solid rgba(74,222,128,0.25)", display: "inline-block",
+            alignSelf: "flex-start",
           }}>Caught up</span>
         )}
       </div>
