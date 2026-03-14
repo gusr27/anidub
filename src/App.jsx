@@ -3084,8 +3084,8 @@ export default function App() {
           -webkit-tap-highlight-color: transparent;
         }
 
-        /* Prevent pinch-zoom and double-tap zoom site-wide */
-        body { touch-action: pan-x pan-y; }
+        /* Prevent pinch-zoom site-wide but preserve scrolling */
+        html { touch-action: pan-x pan-y; }
 
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #080808; }
