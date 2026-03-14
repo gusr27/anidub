@@ -2,12 +2,39 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>anime-dub</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      viewport:
+      - width=device-width          → use actual device px width
+      - initial-scale=1.0           → no zoom on load
+      - maximum-scale=1.0           → prevent pinch-zoom (also kills iOS auto-zoom on input focus)
+      - user-scalable=no            → belt-and-suspenders for older browsers
+      - viewport-fit=cover          → content extends into safe areas (notch/home bar)
+      - interactive-widget=resizes-content → Android Chrome: virtual keyboard resizes
+                                             content area, not the viewport (stops layout shift)
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+
+    <!-- Prevent iOS from detecting phone numbers and styling them as links -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- iOS home screen / PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AnimeDUB" />
+
+    <!-- Android / PWA theme -->
+    <meta name="theme-color" content="#080808" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <title>AnimeDUB</title>
   </head>
   <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
-</body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

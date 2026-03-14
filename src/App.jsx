@@ -2207,12 +2207,38 @@ function FirstRunOverlay({ progress, isMobile = false }) {
 
 // ─── Breakpoint Hook ──────────────────────────────────────────────────────────
 function useBreakpoint() {
-  const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  // Use a ref to store the initial width so toolbar show/hide on mobile
+  // (which fires resize events) doesn't trigger re-renders and layout shifts.
+  // Only re-measure on orientation change which is a genuine layout change.
+  const getWidth = () => typeof window !== "undefined" ? window.innerWidth : 1200;
+  const [width, setWidth] = useState(getWidth);
+
   useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    // Debounced resize — ignores small toolbar-induced changes (< 100px delta)
+    let lastWidth = getWidth();
+    const handler = () => {
+      const next = getWidth();
+      if (Math.abs(next - lastWidth) >= 100) {
+        lastWidth = next;
+        setWidth(next);
+      }
+    };
+    // Orientation change is always a real layout change
+    const orientHandler = () => {
+      setTimeout(() => {
+        const next = getWidth();
+        lastWidth = next;
+        setWidth(next);
+      }, 100);
+    };
+    window.addEventListener("resize", handler, { passive: true });
+    window.addEventListener("orientationchange", orientHandler);
+    return () => {
+      window.removeEventListener("resize", handler);
+      window.removeEventListener("orientationchange", orientHandler);
+    };
   }, []);
+
   return { isMobile: width < 601, isTablet: width >= 601 && width < 900, isDesktop: width >= 900, width };
 }
 
@@ -3029,25 +3055,54 @@ export default function App() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Nunito:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { height: -webkit-fill-available; }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html {
+          /* Use small viewport height — doesn't change when browser UI shows/hides */
+          height: 100%;
+          overflow-x: hidden;
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+        }
+
         body {
           background: #080808;
-          -webkit-text-size-adjust: 100%;
-          overscroll-behavior: none;
-          overscroll-behavior-y: none;
-          -webkit-overflow-scrolling: touch;
+          /* Stacked fallbacks: dvh (dynamic) → svh (small/stable) → fill-available → vh */
           min-height: 100vh;
+          min-height: 100svh;
           min-height: -webkit-fill-available;
+          overflow-x: hidden;
+          /* Kill rubber-band / overscroll on both axes */
+          overscroll-behavior: none;
+          /* Prevent font boosting on Android */
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+          /* Smooth momentum scroll but let us control it */
+          -webkit-overflow-scrolling: touch;
+          /* Prevent tap flash */
+          -webkit-tap-highlight-color: transparent;
         }
+
+        /* Prevent pinch-zoom and double-tap zoom site-wide */
+        body { touch-action: pan-x pan-y; }
+
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #080808; }
         ::-webkit-scrollbar-thumb { background: #1f0505; border-radius: 3px; }
+
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes fadeIn  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:0.25} }
         @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-        input, button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+        input, button, a {
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+        }
+
+        /* Lock inputs — prevents iOS from zooming in when focused if font < 16px */
+        input, select, textarea { font-size: 16px; }
       `}</style>
 
       {firstRun && <FirstRunOverlay progress={syncState.progress} isMobile={isMobile} />}
