@@ -3059,7 +3059,6 @@ export default function App() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html {
-          /* Use small viewport height — doesn't change when browser UI shows/hides */
           height: 100%;
           overflow-x: hidden;
           -webkit-text-size-adjust: 100%;
@@ -3068,24 +3067,16 @@ export default function App() {
 
         body {
           background: #080808;
-          /* Stacked fallbacks: dvh (dynamic) → svh (small/stable) → fill-available → vh */
           min-height: 100vh;
           min-height: 100svh;
           min-height: -webkit-fill-available;
           overflow-x: hidden;
-          /* Kill rubber-band / overscroll on both axes */
-          overscroll-behavior: none;
-          /* Prevent font boosting on Android */
+          /* Only block overscroll on x-axis — blocking y breaks Android scroll */
+          overscroll-behavior-x: none;
           -webkit-text-size-adjust: 100%;
           text-size-adjust: 100%;
-          /* Smooth momentum scroll but let us control it */
-          -webkit-overflow-scrolling: touch;
-          /* Prevent tap flash */
           -webkit-tap-highlight-color: transparent;
         }
-
-        /* Prevent pinch-zoom site-wide but preserve scrolling */
-        html { touch-action: pan-x pan-y; }
 
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: #080808; }
