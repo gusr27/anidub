@@ -1792,7 +1792,7 @@ function AiringPage({ isMobile = false }) {
       {/* Day tabs */}
       <div style={{
         display: "flex", gap: isMobile ? "4px" : "6px", marginBottom: "24px",
-        overflowX: "auto", paddingBottom: "4px",
+        overflowX: isMobile ? "visible" : "auto", paddingBottom: "4px",
         scrollbarWidth: "none",
       }}>
         {DAYS.map((day, i) => {
@@ -1807,16 +1807,17 @@ function AiringPage({ isMobile = false }) {
               onClick={() => setActiveDay(i)}
               whileTap={{ scale: 0.93 }}
               style={{
+                flex: isMobile ? 1 : "0 0 auto",
                 flexShrink: 0,
                 background: isActive ? "#dc2626" : isToday ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.04)",
                 border: isActive ? "1px solid #dc2626" : isToday ? "1px solid rgba(220,38,38,0.35)" : "1px solid rgba(255,255,255,0.08)",
                 color: isActive ? "#fff" : isToday ? "#f87171" : "#555",
                 borderRadius: "8px",
-                padding: isMobile ? "7px 8px" : "9px 14px",
+                padding: isMobile ? "7px 2px" : "9px 14px",
                 cursor: "pointer", fontFamily: "inherit",
                 transition: "all 0.15s",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: "2px",
-                minWidth: isMobile ? "48px" : "72px",
+                minWidth: isMobile ? 0 : "72px",
               }}
             >
               <span style={{ fontSize: isMobile ? "11px" : "12px", fontWeight: 700, letterSpacing: "0.04em" }}>
